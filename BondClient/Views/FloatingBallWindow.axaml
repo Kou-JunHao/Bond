@@ -1,0 +1,75 @@
+<Window x:Class="BondClient.Views.FloatingBallWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowDecorations="None"
+        Topmost="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        ExtendClientAreaToDecorationsHint="False"
+        Title="Bond">
+
+    <Border Name="RootContainer" Background="Transparent" Padding="20">
+        <Panel>
+            <Border Name="BallBorder"
+                    Width="56" Height="56"
+                    CornerRadius="28"
+                    Background="White"
+                    BorderBrush="#FFEEEEEE"
+                    BorderThickness="1"
+                    BoxShadow="0 2 8 0 #1A000000"
+                    RenderTransformOrigin="50%,50%"
+                    PointerPressed="OnPointerPressed"
+                    PointerMoved="OnPointerMoved"
+                    PointerReleased="OnPointerReleased"
+                    PointerEntered="OnPointerEntered"
+                    PointerExited="OnPointerExited">
+                <Border.Clip>
+                    <RectangleGeometry Rect="0,0,56,56" RadiusX="28" RadiusY="28" />
+                </Border.Clip>
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="退出" Click="OnExitClick" />
+                    </ContextMenu>
+                </Border.ContextMenu>
+                <Border.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
+
+                <Panel>
+                    <!-- Ball icon (ball mode) -->
+                    <Border Name="BallContent" Background="Transparent">
+                        <Image Source="avares://BondClient/Assets/Icon.ico"
+                               Width="28" Height="28"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- Panel body (clean white, no text) -->
+                    <Border Name="PanelContent"
+                            Background="White"
+                            Opacity="0"
+                            IsVisible="False" />
+
+                    <!-- MorphIcon: visible during morph + expanded mode -->
+                    <Canvas IsHitTestVisible="False">
+                        <Image Name="MorphIcon"
+                               Source="avares://BondClient/Assets/Icon.ico"
+                               Width="28" Height="28"
+                               Canvas.Left="14" Canvas.Top="14"
+                               Opacity="0"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    <TranslateTransform X="0" Y="0" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+                    </Canvas>
+                </Panel>
+            </Border>
+        </Panel>
+    </Border>
+</Window>
