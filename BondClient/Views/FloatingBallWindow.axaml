@@ -1,6 +1,8 @@
-<Window x:Class="BondClient.Views.FloatingBallWindow"
+﻿<Window x:Class="BondClient.Views.FloatingBallWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:BondClient.ViewModels"
+        xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
         WindowDecorations="None"
         Topmost="True"
         Background="Transparent"
@@ -8,17 +10,143 @@
         SizeToContent="WidthAndHeight"
         CanResize="False"
         ExtendClientAreaToDecorationsHint="False"
-        Title="Bond">
+        Title="Bond"
+        DragDrop.AllowDrop="True">
+
+    <Window.Styles>
+        <!-- CRITICAL: Force window transparent — SukiUI overrides this -->
+        <Style Selector="Window">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- Loading dot pulse animation -->
+        <Style Selector="Border.loading-dot">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Background" Value="{DynamicResource BondDisabled}" />
+        </Style>
+        <Style Selector="Border.loading-dot:nth-child(1)">
+            <Style.Animations>
+                <Animation Duration="0:0:1.2" IterationCount="Infinite" Delay="0:0:0">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Border.loading-dot:nth-child(2)">
+            <Style.Animations>
+                <Animation Duration="0:0:1.2" IterationCount="Infinite" Delay="0:0:0.2">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Border.loading-dot:nth-child(3)">
+            <Style.Animations>
+                <Animation Duration="0:0:1.2" IterationCount="Infinite" Delay="0:0:0.4">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.3" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Device list item slide-in animation -->
+        <Style Selector="ItemsControl#DashDeviceList StackPanel">
+            <Style.Animations>
+                <Animation Duration="0:0:0.15" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="TranslateTransform.Y" Value="8" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="TranslateTransform.Y" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Shake animation for wrong password -->
+        <Style Selector="TextBox.shake">
+            <Style.Animations>
+                <Animation Duration="0:0:0.4" IterationCount="1">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="TranslateTransform.X" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="20%">
+                        <Setter Property="TranslateTransform.X" Value="-6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="40%">
+                        <Setter Property="TranslateTransform.X" Value="6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="60%">
+                        <Setter Property="TranslateTransform.X" Value="-4" />
+                    </KeyFrame>
+                    <KeyFrame Cue="80%">
+                        <Setter Property="TranslateTransform.X" Value="4" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="TranslateTransform.X" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Toast styles -->
+        <Style Selector="Border.toast">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="MaxWidth" Value="340" />
+        </Style>
+        <Style Selector="Border.toast-success">
+            <Setter Property="Background" Value="#265D7358" />
+            <Setter Property="BorderBrush" Value="#FF5D7358" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.toast-error">
+            <Setter Property="Background" Value="#1AA34A42" />
+            <Setter Property="BorderBrush" Value="#FFA34A42" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.toast-info">
+            <Setter Property="Background" Value="#FFF3EFE8" />
+            <Setter Property="BorderBrush" Value="#FFE8E6DC" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </Window.Styles>
 
     <Border Name="RootContainer" Background="Transparent" Padding="20">
         <Panel>
             <Border Name="BallBorder"
                     Width="56" Height="56"
                     CornerRadius="28"
-                    Background="White"
-                    BorderBrush="#FFEEEEEE"
+                    Background="{DynamicResource BondBg}"
+                    BorderBrush="{DynamicResource BondBorder}"
                     BorderThickness="1"
-                    BoxShadow="0 2 8 0 #1A000000"
+                    BoxShadow="0 2 12 0 #18000000"
                     RenderTransformOrigin="50%,50%"
                     PointerPressed="OnPointerPressed"
                     PointerMoved="OnPointerMoved"
@@ -30,7 +158,7 @@
                 </Border.Clip>
                 <Border.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="退出" Click="OnExitClick" />
+                        <MenuItem Header="&#x9000;&#x51FA;" Click="OnExitClick" />
                     </ContextMenu>
                 </Border.ContextMenu>
                 <Border.RenderTransform>
@@ -38,27 +166,718 @@
                 </Border.RenderTransform>
 
                 <Panel>
-                    <!-- Ball icon (ball mode) -->
-                    <Border Name="BallContent" Background="Transparent">
-                        <Image Source="avares://BondClient/Assets/Icon.ico"
-                               Width="28" Height="28"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
+                    <Border Name="PanelContent" Background="Transparent" Opacity="0" IsVisible="False">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <DockPanel Grid.Row="0" Height="56" LastChildFill="True">
+                                <Button Name="SettingsBtn" Classes="Basic"
+                                        DockPanel.Dock="Right"
+                                        VerticalAlignment="Center"
+                                        Click="OnSettingsClick" IsVisible="False"
+                                        Margin="0,0,12,0"
+                                        Padding="8" MinWidth="36" MinHeight="36">
+                                    <Path Width="16" Height="16"
+                                          Data="{StaticResource Ico.Settings}"
+                                          Stroke="{DynamicResource BondStroke}" />
+                                </Button>
+                                <TextBlock Name="DeviceNameDisplay"
+                                           FontSize="15" FontWeight="600"
+                                           Foreground="{DynamicResource BondPrimary}"
+                                           VerticalAlignment="Center"
+                                           Margin="42,0,0,0" />
+                            </DockPanel>
+
+                            <Panel Grid.Row="1" Margin="14,0,14,14">
+
+                                <!-- ===== Dashboard ===== -->
+                                <Panel Name="DashboardPanel" IsVisible="False">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel Spacing="12">
+
+                                            <suki:GlassCard IsOpaque="True">
+                                                <StackPanel Spacing="10">
+                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Lock}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <TextBlock Grid.Column="1" Text="&#x63A5;&#x6536;&#x5BC6;&#x7801;"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                    </Grid>
+                                                    <DockPanel LastChildFill="False">
+                                                        <TextBlock Name="DashPasswordDisplay"
+                                                                   FontSize="20" FontWeight="700"
+                                                                   Foreground="{DynamicResource BondPrimary}"
+                                                                   VerticalAlignment="Center"
+                                                                   DockPanel.Dock="Left"
+                                                                   Margin="24,0,0,0" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                                    DockPanel.Dock="Right"
+                                                                    VerticalAlignment="Center">
+                                                            <Button Classes="Outlined" Padding="8,4"
+                                                                    Click="OnDashCopyPassword">
+                                                                <Grid ColumnDefinitions="Auto,Auto">
+                                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Copy}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Grid.Column="1" Text="&#x590D;&#x5236;" FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                                </Grid>
+                                                            </Button>
+                                                            <Button Classes="Outlined" Padding="8,4"
+                                                                    Click="OnDashRegeneratePassword">
+                                                                <Grid ColumnDefinitions="Auto,Auto">
+                                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Refresh}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Grid.Column="1" Text="&#x5237;&#x65B0;" FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                                </Grid>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </StackPanel>
+                                            </suki:GlassCard>
+
+                                            <suki:GlassCard IsOpaque="True">
+                                                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                                    <Path Width="32" Height="32"
+                                                          Data="{StaticResource Ico.Attach}"
+                                                          HorizontalAlignment="Center"
+                                                          Stroke="{DynamicResource BondStroke}" />
+                                                    <TextBlock Text="&#x62D6;&#x62FD;&#x6587;&#x4EF6;&#x5230;&#x60AC;&#x6D6E;&#x7403;&#x5373;&#x53EF;&#x53D1;&#x9001;"
+                                                               FontSize="13"
+                                                               Foreground="{DynamicResource BondSecondary}"
+                                                               HorizontalAlignment="Center" />
+                                                    <TextBlock Text="&#x652F;&#x6301;&#x6587;&#x4EF6;&#x548C;&#x6587;&#x4EF6;&#x5939;"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource BondSecondary}"
+                                                               HorizontalAlignment="Center" />
+                                                </StackPanel>
+                                            </suki:GlassCard>
+
+                                            <suki:GlassCard IsOpaque="True">
+                                                <StackPanel Spacing="8">
+                                                    <DockPanel LastChildFill="True">
+                                                        <Panel DockPanel.Dock="Right">
+                                                            <Button Classes="Basic" Padding="4"
+                                                                    MinWidth="24" MinHeight="24" Cursor="Hand"
+                                                                    Name="RefreshDevicesBtn"
+                                                                    Click="OnDashRefreshDevices">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Refresh}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                            </Button>
+                                                            <Popup Name="SubnetPopup"
+                                                                   PlacementTarget="{Binding #RefreshDevicesBtn}"
+                                                                   Placement="BottomEdgeAlignedRight"
+                                                                   IsLightDismissEnabled="True"
+                                                                   IsOpen="False">
+                                                                 <Border Name="SubnetPopupBorder" CornerRadius="8"
+                                                                         Padding="4" MinWidth="240"
+                                                                         Background="{DynamicResource BondSurface}"
+                                                                         BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                                                         BoxShadow="0 4 16 0 #20000000">
+                                                                    <StackPanel Name="SubnetList" Spacing="2" />
+                                                                </Border>
+                                                            </Popup>
+                                                        </Panel>
+                                                        <Grid ColumnDefinitions="Auto,Auto,Auto" VerticalAlignment="Center">
+                                                            <Path Grid.Column="0" Width="16" Height="16"
+                                                                  Data="{StaticResource Ico.Globe}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                            <TextBlock Grid.Column="1" FontSize="12"
+                                                                       Foreground="{DynamicResource BondSecondary}"
+                                                                       VerticalAlignment="Center" Margin="8,0,0,0">
+                                                                <Run Text="&#x9644;&#x8FD1;&#x8BBE;&#x5907; " />
+                                                                <Run Name="DashDeviceCount" Text="" />
+                                                            </TextBlock>
+                                                            <Border Grid.Column="2" Name="DashConnectionDot" Width="8" Height="8"
+                                                                    CornerRadius="4" Background="{DynamicResource BondDisabled}"
+                                                                    VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                        </Grid>
+                                                    </DockPanel>
+                                                    <Panel>
+                                                        <StackPanel Name="DashLoadingIndicator"
+                                                                    Orientation="Horizontal" Spacing="6"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center"
+                                                                    IsVisible="True">
+                                                            <Border Classes="loading-dot" />
+                                                            <Border Classes="loading-dot" />
+                                                            <Border Classes="loading-dot" />
+                                                            <TextBlock Text="&#x6B63;&#x5728;&#x641C;&#x7D22;"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource BondSecondary}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="4,0,0,0" />
+                                                        </StackPanel>
+                                                        <ItemsControl Name="DashDeviceList"
+                                                                      x:DataType="vm:TransferViewModel"
+                                                                      ItemsSource="{Binding Devices}"
+                                                                      IsVisible="False">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:DeviceItem">
+                                                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto"
+                                                                          Margin="0,3">
+                                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                                              Data="{StaticResource Ico.Desktop}"
+                                                                              Stroke="{DynamicResource BondStroke}" />
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Device.Name}"
+                                                                                   FontSize="12"
+                                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                        <TextBlock Grid.Column="2" Text="{Binding Device.Ip, StringFormat='({0})'}"
+                                                                                   FontSize="11"
+                                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock Name="DashEmptyHint"
+                                                                   Text="&#x6B63;&#x5728;&#x641C;&#x7D22;&#x9644;&#x8FD1;&#x8BBE;&#x5907;&#x2026;&#x2026;"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   IsVisible="False" />
+                                                    </Panel>
+                                                </StackPanel>
+                                            </suki:GlassCard>
+
+                                            <suki:GlassCard Name="DashRecentCard" IsOpaque="True" IsVisible="False">
+                                                <StackPanel Spacing="8">
+                                                    <DockPanel LastChildFill="True">
+                                                        <Button DockPanel.Dock="Right" Classes="Basic" Padding="4"
+                                                                MinWidth="24" MinHeight="24"
+                                                                Click="OnDashOpenDownloadFolder">
+                                                            <Path Width="14" Height="14"
+                                                                  Data="{StaticResource Ico.Folder}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                        </Button>
+                                                        <Grid ColumnDefinitions="Auto,Auto">
+                                                            <Path Grid.Column="0" Width="16" Height="16"
+                                                                  Data="{StaticResource Ico.Folder}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                            <TextBlock Grid.Column="1" Text="&#x6700;&#x8FD1;&#x63A5;&#x6536;"
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource BondSecondary}"
+                                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                        </Grid>
+                                                    </DockPanel>
+                                                    <ItemsControl Name="DashRecentList"
+                                                                  x:DataType="vm:TransferViewModel"
+                                                                  ItemsSource="{Binding RecentFiles}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:RecentFile">
+                                                                <DockPanel Margin="0,2" LastChildFill="True">
+                                                                    <Path Width="14" Height="14"
+                                                                          Data="{StaticResource Ico.Document}"
+                                                                          VerticalAlignment="Center"
+                                                                          DockPanel.Dock="Left" Margin="0,0,8,0"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Text="{Binding TimeAgo}"
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource BondTertiary}"
+                                                                               VerticalAlignment="Center"
+                                                                               DockPanel.Dock="Right" />
+                                                                    <TextBlock Text="{Binding FileName}"
+                                                                               FontSize="12"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                </DockPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </suki:GlassCard>
+
+                                            <TextBlock Text="Bond v1.0" FontSize="10"
+                                                       Foreground="{DynamicResource BondTertiary}"
+                                                       HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Panel>
+
+                                <!-- ===== Approval ===== -->
+                                <Panel Name="ApprovalPanel" IsVisible="False">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto"
+                                              Margin="0,0,0,12" Height="32">
+                                            <Button Grid.Column="0" Classes="Basic"
+                                                    Click="OnBackToDashboard" Padding="8"
+                                                    MinWidth="32" MinHeight="32">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <Path Grid.Column="1" Width="16" Height="16"
+                                                  Data="{StaticResource Ico.Mail}"
+                                                  VerticalAlignment="Center" Margin="8,0,0,0"
+                                                  Stroke="{DynamicResource BondStroke}" />
+                                            <TextBlock Grid.Column="2" Text="&#x6536;&#x5230;&#x4F20;&#x8F93;&#x8BF7;&#x6C42;"
+                                                       FontSize="14" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        </Grid>
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl Name="ApprovalList"
+                                                          ItemsSource="{Binding PendingRequests}"
+                                                          x:DataType="vm:TransferViewModel">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:PendingRequest">
+                                                        <suki:GlassCard Margin="0,0,0,8" IsOpaque="True">
+                                                            <StackPanel Spacing="8">
+                                                                <DockPanel LastChildFill="True">
+                                                                    <Grid DockPanel.Dock="Left" ColumnDefinitions="Auto,Auto,Auto">
+                                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                                              Data="{StaticResource Ico.Person}"
+                                                                              Stroke="{DynamicResource BondStroke}" />
+                                                                        <TextBlock Grid.Column="1" Text="{Binding FromName}" FontSize="13"
+                                                                                   FontWeight="600"
+                                                                                   Foreground="{DynamicResource BondPrimary}"
+                                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                        <TextBlock Grid.Column="2" Text="&#x60F3;&#x8981;&#x53D1;&#x9001;&#x6587;&#x4EF6;"
+                                                                                   FontSize="12"
+                                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                    </Grid>
+                                                                    <TextBlock Text="{Binding CountdownText}"
+                                                                               FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center"
+                                                                               DockPanel.Dock="Right" />
+                                                                </DockPanel>
+                                                                <Grid ColumnDefinitions="Auto,Auto">
+                                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Desktop}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding FromIp}"
+                                                                               FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                </Grid>
+                                                                <Grid ColumnDefinitions="Auto,Auto">
+                                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Document}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Grid.Column="1" FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center" Margin="8,0,0,0">
+                                                                        <Run Text="{Binding FileCount}" />
+                                                                        <Run Text=" &#x4E2A;&#x6587;&#x4EF6;, " />
+                                                                        <Run Text="{Binding TotalSize}" />
+                                                                    </TextBlock>
+                                                                </Grid>
+                                                                <TextBlock Text="{Binding FileList}"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource BondSecondary}"
+                                                                           Margin="24,0,0,0"
+                                                                           TextWrapping="Wrap"
+                                                                           MaxLines="2" />
+                                                                <StackPanel Orientation="Horizontal" Spacing="8"
+                                                                            HorizontalAlignment="Right">
+                                                                    <Button Content="&#x62D2;&#x7EDD;" Classes="Outlined"
+                                                                            Click="OnRejectRequest" />
+                                                                    <Button Content="&#x63A5;&#x53D7;" Classes="Flat Accent"
+                                                                            Click="OnApproveRequest" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </suki:GlassCard>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Panel>
+
+                                <!-- ===== Transfer ===== -->
+                                <Panel Name="TransferPanel" IsVisible="False">
+
+                                    <DockPanel Name="TransferSelectMode">
+                                        <suki:GlassCard DockPanel.Dock="Top" Margin="0,0,0,10" IsOpaque="True">
+                                            <StackPanel Spacing="6">
+                                                <DockPanel LastChildFill="True">
+                                                    <Button Classes="Basic" DockPanel.Dock="Left"
+                                                            Click="OnBackToDashboard" Padding="6"
+                                                            MinWidth="28" MinHeight="28" Margin="0,0,8,0">
+                                                        <Path Width="16" Height="16"
+                                                              Data="{StaticResource Ico.ChevronLeft}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                    </Button>
+                                                    <Grid ColumnDefinitions="Auto,Auto" VerticalAlignment="Center">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Attach}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <TextBlock Grid.Column="1" Text="&#x5F85;&#x53D1;&#x9001;" FontSize="12"
+                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                    </Grid>
+                                                </DockPanel>
+                                                <TextBlock Name="FileNamesText" FontSize="12"
+                                                           Foreground="{DynamicResource BondSecondary}"
+                                                           TextWrapping="Wrap" MaxLines="2" Margin="24,0,0,0" />
+                                            </StackPanel>
+                                        </suki:GlassCard>
+
+                                        <DockPanel>
+                                            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto"
+                                                  Margin="0,0,0,8">
+                                                <Path Grid.Column="0" Width="16" Height="16"
+                                                      Data="{StaticResource Ico.Globe}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                                <TextBlock Grid.Column="1" FontSize="12"
+                                                           Foreground="{DynamicResource BondSecondary}"
+                                                           VerticalAlignment="Center" Margin="8,0,0,0">
+                                                    <Run Text="&#x9644;&#x8FD1;&#x8BBE;&#x5907; " />
+                                                    <Run Name="DeviceCount" Text="" />
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                                <TextBlock Name="StatusText" Text="" FontSize="11"
+                                                           Foreground="{DynamicResource BondTertiary}"
+                                                           VerticalAlignment="Center"
+                                                           DockPanel.Dock="Left" />
+                                                <Button DockPanel.Dock="Right" Classes="Flat Accent"
+                                                        Click="OnSendClick">
+                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Send}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <TextBlock Grid.Column="1" Text="&#x53D1;&#x9001;"
+                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                   VerticalAlignment="Center" Margin="6,0,0,0" />
+                                                    </Grid>
+                                                </Button>
+                                            </DockPanel>
+
+                                            <Panel>
+                                                <ListBox Name="DeviceListBox"
+                                                         ItemsSource="{Binding Devices}"
+                                                         x:DataType="vm:TransferViewModel">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:DeviceItem">
+                                                            <Panel Margin="0,2">
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <CheckBox IsChecked="{Binding IsSelected}"
+                                                                              IsCheckedChanged="OnDeviceChecked" />
+                                                                    <Path Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Desktop}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Text="{Binding Device.Name}"
+                                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                                    <TextBlock Text="{Binding Device.Ip, StringFormat='({0})'}"
+                                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                                    <TextBox Text="{Binding EnteredPassword}"
+                                                                             IsVisible="{Binding PasswordVisible}" />
+                                                                </StackPanel>
+                                                            </Panel>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                                <TextBlock Name="EmptyHint"
+                                                           FontSize="12" Foreground="{DynamicResource BondDisabled}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           IsVisible="False">
+                                                    <Run Text="&#x672A;&#x53D1;&#x73B0;&#x8BBE;&#x5907;" /><LineBreak />
+                                                    <Run Text="&#x8BF7;&#x786E;&#x4FDD;&#x5BF9;&#x65B9;&#x5DF2;&#x5F00;&#x542F; Bond" FontSize="10" />
+                                                </TextBlock>
+                                            </Panel>
+                                        </DockPanel>
+                                    </DockPanel>
+
+                                    <Panel Name="TransferProgressMode" IsVisible="False" Opacity="0">
+                                        <StackPanel Spacing="12">
+                                            <suki:GlassCard IsOpaque="True">
+                                                <StackPanel Spacing="10">
+                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Document}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <TextBlock Grid.Column="1" Name="ProgressFileName"
+                                                                   FontSize="13" FontWeight="600"
+                                                                   Foreground="{DynamicResource BondPrimary}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   MaxWidth="280" Margin="8,0,0,0" />
+                                                    </Grid>
+
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" CornerRadius="2"
+                                                                Height="4" />
+                                                        <Border Name="ProgressBarFill" Grid.Column="0"
+                                                                Background="{DynamicResource BondAccent}" CornerRadius="2" Height="4"
+                                                                HorizontalAlignment="Left" Width="0" />
+                                                    </Grid>
+
+                                                    <DockPanel LastChildFill="True">
+                                                        <StackPanel Orientation="Horizontal" Spacing="12"
+                                                                    DockPanel.Dock="Left"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Name="ProgressSpeed"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource BondSecondary}" />
+                                                            <TextBlock Name="ProgressETA"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource BondSecondary}" />
+                                                        </StackPanel>
+                                                        <TextBlock Name="ProgressLabel"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                   DockPanel.Dock="Right"
+                                                                   HorizontalAlignment="Right"
+                                                                   VerticalAlignment="Center" />
+                                                    </DockPanel>
+
+                                                    <TextBlock Name="ProgressPercent"
+                                                               FontSize="20" FontWeight="700"
+                                                               Foreground="{DynamicResource BondPrimary}"
+                                                               HorizontalAlignment="Center" />
+                                                </StackPanel>
+                                            </suki:GlassCard>
+
+                                            <Button Name="CancelTransferBtn"
+                                                    Classes="Outlined" HorizontalAlignment="Center"
+                                                    Click="OnCancelTransfer" Padding="16,8">
+                                                <Grid ColumnDefinitions="Auto,Auto">
+                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                          Data="{StaticResource Ico.Close}"
+                                                          Stroke="{DynamicResource BondStroke}" />
+                                                    <TextBlock Grid.Column="1" Text="&#x53D6;&#x6D88;&#x4F20;&#x8F93;"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource BondSecondary}"
+                                                               VerticalAlignment="Center" Margin="6,0,0,0" />
+                                                </Grid>
+                                            </Button>
+                                        </StackPanel>
+                                    </Panel>
+                                </Panel>
+
+                                <!-- ===== Settings ===== -->
+                                <Panel Name="SettingsPanel" IsVisible="False">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" Height="44" Margin="0,0,0,8">
+                                            <Button Name="SettingsBackBtn" Classes="Basic"
+                                                    DockPanel.Dock="Left"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnSettingsBack"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <TextBlock Text="&#x8BBE;&#x7F6E;" FontSize="15" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                        </DockPanel>
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel Spacing="16">
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="&#x8BBE;&#x5907;&#x540D;&#x79F0;"
+                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                    <TextBox Name="SettingsDeviceNameBox"
+                                                             TextChanged="OnDeviceNameChanged" />
+                                                </StackPanel>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="&#x63A5;&#x6536;&#x5BC6;&#x7801;"
+                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                    <suki:GlassCard IsOpaque="True">
+                                                        <StackPanel Spacing="10">
+                                                            <DockPanel LastChildFill="False">
+                                                                <Grid DockPanel.Dock="Left" ColumnDefinitions="Auto,Auto"
+                                                                      VerticalAlignment="Center">
+                                                                    <Path Grid.Column="0" Width="16" Height="16"
+                                                                          Data="{StaticResource Ico.Lock}"
+                                                                          Stroke="{DynamicResource BondStroke}" />
+                                                                    <TextBlock Grid.Column="1" Name="SettingsPasswordDisplay"
+                                                                               FontSize="18" FontWeight="700"
+                                                                               Foreground="{DynamicResource BondPrimary}"
+                                                                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                                                                </Grid>
+                                                                <Button Name="SettingsCopyBtn" Classes="Outlined"
+                                                                        Click="OnSettingsCopyPassword"
+                                                                        DockPanel.Dock="Right"
+                                                                        VerticalAlignment="Center"
+                                                                        Padding="8,4">
+                                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                                              Data="{StaticResource Ico.Copy}"
+                                                                              Stroke="{DynamicResource BondStroke}" />
+                                                                        <TextBlock Grid.Column="1" Text="&#x590D;&#x5236;"
+                                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                                   VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                                    </Grid>
+                                                                </Button>
+                                                            </DockPanel>
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Button Classes="Outlined"
+                                                                        Click="OnSettingsRegeneratePassword"
+                                                                        Padding="8,4">
+                                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                                              Data="{StaticResource Ico.Refresh}"
+                                                                              Stroke="{DynamicResource BondStroke}" />
+                                                                        <TextBlock Grid.Column="1" Text="&#x5237;&#x65B0;"
+                                                                                   Foreground="{DynamicResource BondSecondary}"
+                                                                                   VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                                    </Grid>
+                                                                </Button>
+                                                                <Button Name="SettingsDisablePasswordBtn"
+                                                                        Classes="Outlined"
+                                                                        Click="OnSettingsDisablePassword"
+                                                                        Padding="8,4">
+                                                                    <TextBlock Text="&#x5173;&#x95ED;&#x5BC6;&#x7801;"
+                                                                               Foreground="{DynamicResource BondSecondary}"
+                                                                               VerticalAlignment="Center" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </suki:GlassCard>
+                                                </StackPanel>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;"
+                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                    <Border Name="SettingsDownloadPathBtn"
+                                                            CornerRadius="8" Padding="10,8"
+                                                            Cursor="Hand"
+                                                            PointerPressed="OnSettingsBrowseFolder">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                                            <Path Grid.Column="0" Width="16" Height="16"
+                                                                  Data="{StaticResource Ico.Folder}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                            <TextBlock Grid.Column="1" Name="SettingsDownloadPath"
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource BondSecondary}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Margin="8,0,8,0" />
+                                                            <TextBlock Grid.Column="2" Text="&#x66F4;&#x6539;"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource BondSecondary}"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </Border>
+                                                </StackPanel>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="&#x4F20;&#x8F93;&#x7AEF;&#x53E3;"
+                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                    <Grid ColumnDefinitions="Auto,Auto,Auto">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Wifi}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <TextBox Grid.Column="1" Name="SettingsPort"
+                                                                 FontSize="12"
+                                                                 VerticalAlignment="Center"
+                                                                 Margin="8,0,0,0" Width="80"
+                                                                 CornerRadius="6" Padding="6,4"
+                                                                 MaxLength="5" />
+                                                        <TextBlock Grid.Column="2" Text="&#x91CD;&#x542F;&#x540E;&#x751F;&#x6548;"
+                                                                   FontSize="10"
+                                                                   Foreground="{DynamicResource BondTertiary}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="8,0,0,0" />
+                                                    </Grid>
+                                                </StackPanel>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Text="&#x63A5;&#x6536;&#x8BBE;&#x7F6E;"
+                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                    <suki:GlassCard IsOpaque="True">
+                                                        <DockPanel LastChildFill="True">
+                                                            <Grid DockPanel.Dock="Left" ColumnDefinitions="Auto,Auto"
+                                                                  VerticalAlignment="Center">
+                                                                <Path Grid.Column="0" Width="16" Height="16"
+                                                                      Data="{StaticResource Ico.Send}"
+                                                                      RenderTransform="scaleX(-1)"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                                    <TextBlock Text="&#x65E0;&#x9700;&#x5BA1;&#x6279;&#x81EA;&#x52A8;&#x63A5;&#x6536;"
+                                                                               FontSize="13"
+                                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                                    <TextBlock Text="&#x5176;&#x4ED6;&#x8BBE;&#x5907;&#x53EF;&#x76F4;&#x63A5;&#x53D1;&#x9001;&#x6587;&#x4EF6;"
+                                                                               FontSize="11"
+                                                                               Foreground="{DynamicResource BondSecondary}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                            <ToggleSwitch Name="SettingsAutoApprove"
+                                                                          DockPanel.Dock="Right"
+                                                                          VerticalAlignment="Center"
+                                                                          IsCheckedChanged="OnAutoApproveToggled" />
+                                                        </DockPanel>
+                                                    </suki:GlassCard>
+                                                </StackPanel>
+                                                <!-- Theme Toggle -->
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <DockPanel LastChildFill="True">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                                    DockPanel.Dock="Left" VerticalAlignment="Center">
+                                                            <Path Width="16" Height="16"
+                                                                  Data="{StaticResource Ico.Desktop}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                            <StackPanel Spacing="2">
+                                                                <TextBlock Text="&#x6DF1;&#x8272;&#x6A21;&#x5F0F;"
+                                                                           FontSize="13"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                                <TextBlock Text="&#x5207;&#x6362;&#x4EAE;&#x8272;/&#x6DF1;&#x8272;&#x754C;&#x9762;"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <ToggleSwitch Name="SettingsThemeToggle"
+                                                                      DockPanel.Dock="Right"
+                                                                      VerticalAlignment="Center"
+                                                                      IsCheckedChanged="OnThemeToggleSwitch" />
+                                                    </DockPanel>
+                                                </suki:GlassCard>
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <Grid ColumnDefinitions="Auto,Auto">
+                                                        <Path Grid.Column="0" Width="16" Height="16"
+                                                              Data="{StaticResource Ico.Info}"
+                                                              Stroke="{DynamicResource BondStroke}" />
+                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                            <TextBlock Text="&#x5173;&#x4E8E; Bond" FontSize="13"
+                                                                       FontWeight="600"
+                                                                       Foreground="{DynamicResource BondPrimary}" />
+                                                            <TextBlock Text="&#x5C40;&#x57DF;&#x7F51;&#x6587;&#x4EF6;&#x4F20;&#x8F93;&#x5DE5;&#x5177;"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource BondSecondary}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </suki:GlassCard>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Panel>
+
+                            </Panel>
+                        </Grid>
                     </Border>
 
-                    <!-- Panel body (clean white, no text) -->
-                    <Border Name="PanelContent"
-                            Background="White"
-                            Opacity="0"
-                            IsVisible="False" />
+                    <StackPanel Name="ToastContainer"
+                                Orientation="Vertical" Spacing="4"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Top"
+                                Margin="0,6,0,0"
+                                IsHitTestVisible="False" />
 
-                    <!-- MorphIcon: visible during morph + expanded mode -->
                     <Canvas IsHitTestVisible="False">
-                        <Image Name="MorphIcon"
-                               Source="avares://BondClient/Assets/Icon.ico"
-                               Width="28" Height="28"
-                               Canvas.Left="14" Canvas.Top="14"
-                               Opacity="0"
+                        <Image Name="MorphIcon" Source="avares://BondClient/Assets/Icon.ico"
+                               Width="28" Height="28" Canvas.Left="13" Canvas.Top="13"
                                RenderTransformOrigin="0.5,0.5">
                             <Image.RenderTransform>
                                 <TransformGroup>

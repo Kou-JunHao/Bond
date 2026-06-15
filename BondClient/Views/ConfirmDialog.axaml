@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="BondClient.Views.ConfirmDialog"
+        Title="Bond"
+        Width="320" Height="160"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        WindowDecorations="None"
+        Background="Transparent">
+    <Border CornerRadius="12" Background="White" Padding="20"
+            BoxShadow="0 4 24 0 #20000000">
+        <StackPanel Spacing="16">
+            <TextBlock Name="MessageText" FontSize="13" Foreground="#FF333333"
+                       TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Name="CancelBtn" Classes="Outlined" Content="取消"
+                        Click="OnCancel" Padding="16,6" />
+                <Button Name="ConfirmBtn" Classes="Flat Accent" Content="确定"
+                        Click="OnConfirm" Padding="16,6" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
