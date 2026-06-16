@@ -102,9 +102,19 @@ public class App : Application
         var exitItem = new NativeMenuItem("退出");
         exitItem.Click += (_, _) => desktop.Shutdown();
 
+        var resetItem = new NativeMenuItem("重置位置");
+        resetItem.Click += (_, _) =>
+        {
+            _floatingBall?.Show();
+            _floatingBall?.ResetPosition();
+            _floatingBall?.Activate();
+        };
+
         var trayMenu = new NativeMenu();
         trayMenu.Items.Add(showItem);
         trayMenu.Items.Add(hideItem);
+        trayMenu.Items.Add(new NativeMenuItemSeparator());
+        trayMenu.Items.Add(resetItem);
         trayMenu.Items.Add(new NativeMenuItemSeparator());
         trayMenu.Items.Add(exitItem);
 
@@ -118,14 +128,17 @@ public class App : Application
 
         _trayIcon.Clicked += (_, _) =>
         {
-            if (_floatingBall == null) return;
-            if (_floatingBall.IsVisible)
-                _floatingBall.Hide();
-            else
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                _floatingBall.Show();
-                _floatingBall.Activate();
-            }
+                if (_floatingBall == null) return;
+                if (_floatingBall.IsVisible)
+                    _floatingBall.Hide();
+                else
+                {
+                    _floatingBall.Show();
+                    _floatingBall.Activate();
+                }
+            });
         };
 
         desktop.ShutdownRequested += (_, _) =>

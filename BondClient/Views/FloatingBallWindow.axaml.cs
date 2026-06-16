@@ -1,4 +1,4 @@
-Ôªøusing System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -18,8 +19,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using BondClient.Models;
 using BondClient.Services;
 using BondClient.ViewModels;
+using Path = System.IO.Path;
 using SkiaSharp;
 using Svg.Skia;
 
@@ -39,17 +42,26 @@ public partial class FloatingBallWindow : Window
     private const double SettingsHeightDip = 460.0;
     private const double PanelCR = 16.0;
     private const double BallCR = 28.0;
+    private const double PillWidthDip = 14.0;
+    private const double PillHeightDip = 72.0;
+    private const double PillCR = 7.0;
     private const double IconSizeDip = 28.0;
     private const double IconTargetSizeDip = 18.0;
 
     // Apple CASpringAnimation: near-critical damping, moderate speed
-    // Œ∂=0.92 ‚Üí very slight overshoot (~1%), clean settle
-    // œâ=4.5  ‚Üí deliberate speed, spring's zero-velocity start gives natural "weighted" feel
     private const double BorderZeta = 0.92, BorderOmega = 4.5;
     private const double IconZeta = 0.85, IconOmega = 5.5;
+    // Pill°˙panel: separate curves for width (fast bloom) and height (follow-through)
+    private const double PillWZeta = 0.78, PillWOmega = 5.0;
+    private const double PillHZeta = 0.82, PillHOmega = 4.2;
+    // Position: snappy overshoot
+    private const double PosZeta = 0.85, PosOmega = 5.0;
 
     private static readonly double BorderEndVal = ComputeSpringEnd(BorderZeta, BorderOmega);
     private static readonly double IconEndVal = ComputeSpringEnd(IconZeta, IconOmega);
+    private static readonly double PillWEndVal = ComputeSpringEnd(PillWZeta, PillWOmega);
+    private static readonly double PillHEndVal = ComputeSpringEnd(PillHZeta, PillHOmega);
+    private static readonly double PosEndVal = ComputeSpringEnd(PosZeta, PosOmega);
 
     private double _dpi = 1.0;
     private double _ballSize, _ballPad, _panelW, _panelH;
@@ -61,7 +73,8 @@ public partial class FloatingBallWindow : Window
 
     private bool _ptrDown, _dragging;
     private PixelPoint _ptrStart, _winStart;
-    private bool _snapL, _snapR, _hoverSnap;
+    private enum SnapDir { None, Left, Right, Top, Bottom }
+    private SnapDir _snapDir = SnapDir.None;
     private bool _expanded;
     private bool _morphInProgress;
 
@@ -72,6 +85,7 @@ public partial class FloatingBallWindow : Window
     private long _mTick;
     private double _fW, _fH, _fCR, _tW, _tH, _tCR;
     private int _cx, _cy;
+    private int _scx, _scy, _tcx, _tcy; // Start/Target center for smooth position animation
     private double _iFx, _iFy, _iFs, _iTx, _iTy, _iTs;
 
     // Content fade
@@ -86,6 +100,10 @@ public partial class FloatingBallWindow : Window
     private uint _transferCrossfadeGen;
     private bool _isDark;
 
+    // Debug mode
+    private bool _debugMode;
+    private DispatcherTimer? _aboutLongPressTimer;
+
     // Dashboard loading
     private DispatcherTimer? _loadingTimer;
     private DispatcherTimer? _approvalCountdown;
@@ -99,11 +117,19 @@ public partial class FloatingBallWindow : Window
     private long _hTick;
     private double _hFrom, _hTo;
 
+    // Pill morph (edge snap)
+    private bool _isPill;
+    private uint _pillGen;
+    private double _pillT;
+    private long _pillTick;
+    private double _pillFromW, _pillToW, _pillFromH, _pillToH, _pillFromCR, _pillToCR;
+
     // Cache
     private ScaleTransform? _mScale;
     private TranslateTransform? _mTrans;
     private double _lastW = double.NaN, _lastH, _lastCR;
     private double _lastItx = double.NaN, _lastIty, _lastIts;
+    private bool _morphFromPill;
 
     // Services
     private PasswordManager _password = null!;
@@ -151,6 +177,8 @@ public partial class FloatingBallWindow : Window
 
         LoadSvgIcon();
         RestorePosition();
+        ClampToScreen();
+        AutoSnapIfOffScreen();
         if (!File.Exists(PosFile))
         {
             var s = Screens.Primary;
@@ -235,13 +263,13 @@ public partial class FloatingBallWindow : Window
             }
 
             DashConnectionDot.Background = _vm.Devices.Count > 0
-                ? new SolidColorBrush(Color.Parse("#FF81C784"))
-                : new SolidColorBrush(Color.Parse("#FFCCCCCC"));
+                ? TryGetBrush("BondSuccess")
+                : TryGetBrush("BondDisabled");
         };
         _vm.TransferDone += name =>
         {
-            StatusText.Text = $"Â∑≤Êé•Êî∂: {name}";
-            ShowToast($"Â∑≤Êé•Êî∂: {name}", ToastType.Success);
+            StatusText.Text = $"“—Ω” ’: {name}";
+            ShowToast($"“—Ω” ’: {name}", ToastType.Success);
         };
         _vm.TransferStarted += OnTransferStarted;
         _vm.TransferEnded += OnTransferEnded;
@@ -260,10 +288,15 @@ public partial class FloatingBallWindow : Window
         _discovery.Start();
         _transfer.Start();
 
-        // Initialize theme state
+        // Initialize theme state + listen to ALL theme changes from SukiUI
         var suki = SukiUI.SukiTheme.GetInstance(Application.Current!);
         _isDark = suki.ActiveBaseTheme == Avalonia.Styling.ThemeVariant.Dark;
-        if (_isDark) ApplyThemeColors(true);
+        suki.OnBaseThemeChanged = (theme) =>
+        {
+            _isDark = theme == Avalonia.Styling.ThemeVariant.Dark;
+            Dispatcher.UIThread.Post(() => ApplyThemeColors(_isDark));
+        };
+        ApplyThemeColors(_isDark); // Always apply on startup
 
         // Check firewall status for LAN compatibility
         _ = Task.Run(() => CheckFirewall());
@@ -292,7 +325,7 @@ public partial class FloatingBallWindow : Window
                 if (req.RemainingSeconds <= 0)
                 {
                     _vm.RejectRequest(req);
-                    ShowToast("ËØ∑Ê±ÇÂ∑≤Ë∂ÖÊó∂", ToastType.Info);
+                    ShowToast("«Î«Û“—≥¨ ±", ToastType.Info);
                 }
             }
         };
@@ -300,6 +333,7 @@ public partial class FloatingBallWindow : Window
 
     private void OnPendingRequestsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        ApprovalCount.Text = _vm.PendingRequests.Count > 0 ? $"({_vm.PendingRequests.Count})" : "";
         if (_vm.PendingRequests.Count == 0)
         {
             ApprovalPanel.IsVisible = false;
@@ -323,6 +357,13 @@ public partial class FloatingBallWindow : Window
         DashEmptyHint.IsVisible = _vm.Devices.Count == 0;
     }
 
+    private void UpdateFileInfo(string[] files)
+    {
+        var names = string.Join(", ", files.Select(Path.GetFileName));
+        FileNamesText.Text = names;
+        FileCountLabel.Text = files.Length > 1 ? $"({files.Length} ∏ˆŒƒº˛)" : "";
+    }
+
     private void CheckFirewall()
     {
         try
@@ -337,14 +378,14 @@ public partial class FloatingBallWindow : Window
                 if (added)
                 {
                     Dispatcher.UIThread.Post(() =>
-                        ShowToast($"Â∑≤‰∏∫{status.ProfileName}Ê∑ªÂä†Èò≤ÁÅ´Â¢ôËßÑÂàô", ToastType.Success));
+                        ShowToast($"“—Œ™{status.ProfileName}ÃÌº”∑¿ª«ΩπÊ‘Ú", ToastType.Success));
                 }
                 else
                 {
-                    // No admin rights ‚Äî create batch script and prompt user
+                    // No admin rights °™ create batch script and prompt user
                     var scriptPath = FirewallHelper.CreateBatchScript();
                     Dispatcher.UIThread.Post(() =>
-                        ShowToast($"ÂΩìÂâç‰∏∫{status.ProfileName}ÔºåÂ±ÄÂüüÁΩëÂèëÁé∞ÂèØËÉΩÂèóÈôê„ÄÇËØ∑‰ª•ÁÆ°ÁêÜÂëòËøêË°å add_firewall_rules.bat", ToastType.Info));
+                        ShowToast($"µ±«∞Œ™{status.ProfileName}£¨æ÷”ÚÕ¯∑¢œ÷ø…ƒ‹ ‹œﬁ°£«Î“‘π‹¿Ì‘±‘À–– add_firewall_rules.bat", ToastType.Info));
                 }
             }
         }
@@ -490,15 +531,15 @@ public partial class FloatingBallWindow : Window
         // If transfer in progress, ask for confirmation
         if (_showTransferProgress)
         {
-            var dlg = new ConfirmDialog("ÂΩìÂâçÊúâ‰º†ËæìÊ≠£Âú®ËøõË°åÔºåÊòØÂê¶ÂèñÊ∂àÂπ∂ÂèëÈÄÅÊñ∞Êñá‰ª∂Ôºü");
+            var dlg = new ConfirmDialog("µ±«∞”–¥´ ‰’˝‘⁄Ω¯––£¨ «∑Ò»°œ˚≤¢∑¢ÀÕ–¬Œƒº˛£ø");
             var confirmed = await dlg.ShowDialog<bool>(this);
             if (!confirmed) return;
             _vm?.CancelTransfer();
         }
 
         _vm!.QueuedFiles = [.. paths];
-        var names = string.Join(", ", paths.Select(Path.GetFileName));
-        StatusText.Text = $"Â∑≤ÈÄâÊã©: {names}";
+        UpdateFileInfo(_vm.QueuedFiles!);
+        StatusText.Text = $"“——°‘Ò: {string.Join(", ", paths.Select(Path.GetFileName))}";
         EmptyHint.IsVisible = false;
 
         if (!_expanded)
@@ -507,7 +548,6 @@ public partial class FloatingBallWindow : Window
         }
         else if (!TransferPanel.IsVisible)
         {
-            FileNamesText.Text = names;
             _vm?.RefreshDevices();
             if (!_morphInProgress)
             {
@@ -516,13 +556,12 @@ public partial class FloatingBallWindow : Window
         }
         else if (_showTransferProgress)
         {
-            FileNamesText.Text = names;
             _vm!.RefreshDevices();
             StartTransferProgressCrossfade(false);
         }
         else
         {
-            FileNamesText.Text = names;
+            UpdateFileInfo(_vm!.QueuedFiles!);
             _vm.RefreshDevices();
         }
     }
@@ -535,6 +574,8 @@ public partial class FloatingBallWindow : Window
 
     private void ShowToast(string message, ToastType type = ToastType.Info)
     {
+        if (!_expanded) return; // Don't show toast when ball is collapsed
+
         var accentBrush = new SolidColorBrush(Color.Parse("#FF5D7358"));
         var errorBrush = new SolidColorBrush(Color.Parse("#FFA34A42"));
         var secondaryBrush = new SolidColorBrush(Color.Parse("#FF6F6A63"));
@@ -681,12 +722,11 @@ public partial class FloatingBallWindow : Window
     {
         StartRainbow();
         _approvalCountdown?.Start();
-        if (!_expanded) DoExpand(showApproval: true);
-        else ShowApprovalPanel();
     }
 
     private void ShowApprovalPanel()
     {
+        StopRainbow(); // Stop rainbow when approval panel is visible
         DeviceNameDisplay.Opacity = 0;
         TransferPanel.IsVisible = false;
         TransferPanel.Opacity = 0;
@@ -706,11 +746,13 @@ public partial class FloatingBallWindow : Window
     private void StopRainbow()
     {
         _rainbowTimer?.Stop();
-        BallBorder.Background = new SolidColorBrush(Color.Parse("#FDF5E6"));
+        ApplyThemeColors(_isDark);
     }
 
     private void OnRainbowTick(object? sender, EventArgs e)
     {
+        // Only apply rainbow to ball, not expanded panel
+        if (_expanded || _snapDir != SnapDir.None) return;
         _rainbowHue = (_rainbowHue + 3) % 360;
         var color = HsvToRgb(_rainbowHue, 0.5, 1.0);
         BallBorder.Background = new SolidColorBrush(color);
@@ -738,8 +780,8 @@ public partial class FloatingBallWindow : Window
     private void OnSendClick(object? sender, RoutedEventArgs e)
     {
         var selected = _vm.Devices.Where(d => d.IsSelected).ToList();
-        if (selected.Count == 0) { StatusText.Text = "ËØ∑ÈÄâÊã©ËÆæÂ§á"; return; }
-        if (_vm.QueuedFiles == null || _vm.QueuedFiles.Length == 0) { StatusText.Text = "ËØ∑ÊãñÂÖ•Êñá‰ª∂"; return; }
+        if (selected.Count == 0) { StatusText.Text = "«Î—°‘Ò…Ë±∏"; return; }
+        if (_vm.QueuedFiles == null || _vm.QueuedFiles.Length == 0) { StatusText.Text = "«ÎÕœ»ÎŒƒº˛"; return; }
 
         StopRainbow();
         _ = _vm.SendToSelected(selected);
@@ -771,7 +813,7 @@ public partial class FloatingBallWindow : Window
     private void OnCancelTransfer(object? sender, RoutedEventArgs e)
     {
         _vm?.CancelTransfer();
-        ShowToast("‰º†ËæìÂ∑≤ÂèñÊ∂à", ToastType.Info);
+        ShowToast("¥´ ‰“—»°œ˚", ToastType.Info);
     }
 
     private void OnDashCopyPassword(object? sender, RoutedEventArgs e)
@@ -808,7 +850,7 @@ public partial class FloatingBallWindow : Window
         // "All subnets" option
         var allBtn = new Button
         {
-            Content = "ÂÖ®ÈÉ®ÁΩëÊÆµ",
+            Content = "»´≤øÕ¯∂Œ",
             Tag = null,
             Background = Brushes.Transparent,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
@@ -825,7 +867,7 @@ public partial class FloatingBallWindow : Window
         SubnetList.Children.Add(new Border
         {
             Height = 1,
-            Background = new SolidColorBrush(Color.Parse("#FFE0E0E0")),
+            Background = TryGetBrush("BondBorder"),
             Margin = new Avalonia.Thickness(8, 4)
         });
 
@@ -849,13 +891,13 @@ public partial class FloatingBallWindow : Window
             {
                 Text = $"{subnet.LocalIP}/{subnet.Cidr}",
                 FontSize = 12,
-                Foreground = new SolidColorBrush(Color.Parse("#FF333333"))
+                Foreground = TryGetBrush("BondPrimary")
             });
             panel.Children.Add(new TextBlock
             {
                 Text = subnet.Description,
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Color.Parse("#FF999999"))
+                Foreground = TryGetBrush("BondTertiary")
             });
             subnetBtn.Content = panel;
             subnetBtn.Click += OnSubnetSelected;
@@ -883,12 +925,12 @@ public partial class FloatingBallWindow : Window
 
         if (btn.Tag is IPEndPoint ep)
         {
-            ShowToast($"Ê≠£Âú®Êâ´Êèè {ep.Address}...", ToastType.Info);
+            ShowToast($"’˝‘⁄…®√Ë {ep.Address}...", ToastType.Info);
             await _discovery.ScanSubnet(ep);
         }
         else
         {
-            ShowToast("Ê≠£Âú®ÊêúÁ¥¢ÂÖ®ÈÉ®ÁΩëÊÆµ...", ToastType.Info);
+            ShowToast("’˝‘⁄À—À˜»´≤øÕ¯∂Œ...", ToastType.Info);
             _ = Task.Run(() => _discovery.AnnounceOnce(CancellationToken.None));
         }
     }
@@ -905,14 +947,14 @@ public partial class FloatingBallWindow : Window
     private void OnSettingsRegeneratePassword(object? sender, RoutedEventArgs e)
     {
         _password.RegeneratePassword();
-        SettingsPasswordDisplay.Text = _password.HasPassword ? _password.Password : "Êú™ËÆæÁΩÆ";
+        SettingsPasswordDisplay.Text = _password.HasPassword ? _password.Password : "Œ¥…Ë÷√";
         SettingsDisablePasswordBtn.IsEnabled = _password.HasPassword;
     }
 
     private void OnSettingsDisablePassword(object? sender, RoutedEventArgs e)
     {
         _password.DisablePassword();
-        SettingsPasswordDisplay.Text = "Êú™ËÆæÁΩÆ";
+        SettingsPasswordDisplay.Text = "Œ¥…Ë÷√";
         SettingsDisablePasswordBtn.IsEnabled = false;
     }
 
@@ -927,7 +969,7 @@ public partial class FloatingBallWindow : Window
 
             var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
             {
-                Title = "ÈÄâÊã©‰∏ãËΩΩÁõÆÂΩï",
+                Title = "—°‘Òœ¬‘ÿƒø¬º",
                 AllowMultiple = false
             });
 
@@ -959,6 +1001,154 @@ public partial class FloatingBallWindow : Window
         }
     }
 
+    #region Debug Mode
+
+    private void OnAboutPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _aboutLongPressTimer?.Stop();
+        _aboutLongPressTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _aboutLongPressTimer.Tick += (_, _) =>
+        {
+            _aboutLongPressTimer.Stop();
+            _debugMode = !_debugMode;
+            DebugPanel.IsVisible = _debugMode;
+            AboutSubtitle.Text = _debugMode ? "µ˜ ‘ƒ£ Ω“—ø™∆Ù" : "æ÷”ÚÕ¯Œƒº˛¥´ ‰π§æﬂ";
+            ShowToast(_debugMode ? "µ˜ ‘ƒ£ Ω“—ø™∆Ù" : "µ˜ ‘ƒ£ Ω“—πÿ±’", ToastType.Info);
+        };
+        _aboutLongPressTimer.Start();
+    }
+
+    private void OnAboutPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _aboutLongPressTimer?.Stop();
+    }
+
+    private void DebugGoDashboard(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        if (_showSettings) DoSettingsCollapse();
+        if (_showTransfer || _showApproval) DoMorphToDashboard();
+    }
+
+    private void DebugGoTransfer(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        _vm.QueuedFiles = ["debug_test.txt"];
+        UpdateFileInfo(_vm.QueuedFiles);
+        _vm.RefreshDevices();
+        if (_showSettings) DoSettingsCollapse();
+        if (!_showTransfer) DoMorphToTransfer();
+    }
+
+    private void DebugGoApproval(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        if (_showSettings) DoSettingsCollapse();
+        if (!_showApproval)
+        {
+            ApprovalPanel.IsVisible = true;
+            ApprovalPanel.Opacity = 1;
+            TransferPanel.IsVisible = false;
+            DashboardPanel.IsVisible = false;
+            SettingsPanel.IsVisible = false;
+            DeviceNameDisplay.Opacity = 0;
+            _showApproval = true;
+            _showTransfer = false;
+            _showDashboard = false;
+            _showSettings = false;
+            SettingsBtn.IsVisible = false;
+        }
+    }
+
+    private void DebugGoSettings(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        if (!_showSettings) DoSettingsExpand();
+    }
+
+    private static int _fakeDeviceCounter;
+
+    private void DebugAddFakeDevice(object? sender, RoutedEventArgs e)
+    {
+        _fakeDeviceCounter++;
+        var fake = new DeviceInfo
+        {
+            Id = $"debug-{_fakeDeviceCounter}-{Guid.NewGuid():N}",
+            Name = $"≤‚ ‘…Ë±∏ {_fakeDeviceCounter}",
+            Ip = $"192.168.1.{100 + _fakeDeviceCounter}",
+            Port = 19850,
+            HasPassword = _fakeDeviceCounter % 2 == 0,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        };
+        _vm.Devices.Add(new DeviceItem(fake));
+        DeviceCount.Text = $"({_vm.Devices.Count})";
+        DashDeviceCount.Text = $"({_vm.Devices.Count})";
+        ShowToast($"“—ÃÌº”: {fake.Name} ({fake.Ip})", ToastType.Info);
+    }
+
+    private void DebugClearFakeDevices(object? sender, RoutedEventArgs e)
+    {
+        var fakes = _vm.Devices.Where(d => d.Device.Id.StartsWith("debug-")).ToList();
+        foreach (var f in fakes) _vm.Devices.Remove(f);
+        _fakeDeviceCounter = 0;
+        DeviceCount.Text = $"({_vm.Devices.Count})";
+        DashDeviceCount.Text = $"({_vm.Devices.Count})";
+        ShowToast($"“—«Â≥˝ {fakes.Count} ∏ˆ≤‚ ‘…Ë±∏", ToastType.Info);
+    }
+
+    private static int _fakeRequestCounter;
+
+    private void DebugAddFakeRequest(object? sender, RoutedEventArgs e)
+    {
+        _fakeRequestCounter++;
+        var names = new[] { "Œƒµµ.pdf", "’’∆¨.jpg", " ”∆µ.mp4", "¥˙¬Î.zip", "“Ù¿÷.mp3" };
+        var sizes = new[] { 1024L * 1024 * 5, 1024L * 1024 * 12, 1024L * 1024 * 68, 1024L * 1024 * 150, 1024L * 1024 * 3 };
+        var fileCount = Random.Shared.Next(1, 5);
+        var files = Enumerable.Range(0, fileCount).Select(i => new FileEntry
+        {
+            RelativePath = names[i % names.Length],
+            Size = sizes[i % sizes.Length],
+            IsDirectory = false
+        }).ToList();
+        var totalSize = files.Sum(f => f.Size);
+
+        var request = new TransferRequest
+        {
+            FromId = $"debug-req-{_fakeRequestCounter}",
+            FromName = $"≤‚ ‘”√ªß {_fakeRequestCounter}",
+            Files = files,
+            TotalSize = totalSize,
+            Password = null
+        };
+
+        var fileList = string.Join(", ", files.Take(3).Select(f => System.IO.Path.GetFileName(f.RelativePath)));
+        if (files.Count > 3) fileList += "...";
+
+        _vm.PendingRequests.Add(new PendingRequest
+        {
+            Request = request,
+            FromName = request.FromName,
+            FromIp = $"192.168.1.{200 + _fakeRequestCounter}",
+            FileCount = fileCount,
+            TotalSize = TransferViewModel.FormatSize(totalSize),
+            FileList = fileList,
+            RemainingSeconds = 30
+        });
+
+        OnIncomingRequest();
+        ShowToast($"“—ÃÌº”≤‚ ‘«Î«Û: {request.FromName}", ToastType.Info);
+    }
+
+    private void DebugClearFakeRequests(object? sender, RoutedEventArgs e)
+    {
+        var fakes = _vm.PendingRequests.Where(r => r.Request.FromId.StartsWith("debug-req-")).ToList();
+        foreach (var f in fakes) _vm.PendingRequests.Remove(f);
+        _fakeRequestCounter = 0;
+        ShowToast($"“—«Â≥˝ {fakes.Count} ∏ˆ≤‚ ‘«Î«Û", ToastType.Info);
+    }
+
+    #endregion
+
     private void DoSettingsExpand()
     {
         _hGen++; Sc = 1;
@@ -966,6 +1156,7 @@ public partial class FloatingBallWindow : Window
         var th = BallBorder.Height + _ballPad * 2;
         _cx = Position.X + DipToPx(tw) / 2;
         _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
         _fW = BallBorder.Width; _tW = SettingsWidthDip;
         _fH = BallBorder.Height; _tH = SettingsHeightDip;
         _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
@@ -980,7 +1171,7 @@ public partial class FloatingBallWindow : Window
         SettingsBtn.IsVisible = false;
 
         SettingsDeviceNameBox.Text = _password.DeviceName;
-        SettingsPasswordDisplay.Text = _password.HasPassword ? _password.Password : "Êú™ËÆæÁΩÆ";
+        SettingsPasswordDisplay.Text = _password.HasPassword ? _password.Password : "Œ¥…Ë÷√";
         SettingsDisablePasswordBtn.IsEnabled = _password.HasPassword;
         SettingsDownloadPath.Text = _password.DownloadPath;
         SettingsPort.Text = _password.TransferPort.ToString();
@@ -1008,6 +1199,7 @@ public partial class FloatingBallWindow : Window
         var th = BallBorder.Height + _ballPad * 2;
         _cx = Position.X + DipToPx(tw) / 2;
         _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
         _fW = BallBorder.Width; _tW = _panelW;
         _fH = BallBorder.Height; _tH = _panelH;
         _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
@@ -1043,7 +1235,7 @@ public partial class FloatingBallWindow : Window
         _showSettings = false;
         _showDashboard = true;
         _contentFadeIn = true;
-        DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Êú™ËÆæÁΩÆ";
+        DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Œ¥…Ë÷√";
 
         _devicesLoaded = false;
         DashLoadingIndicator.IsVisible = true;
@@ -1061,6 +1253,7 @@ public partial class FloatingBallWindow : Window
         var th = BallBorder.Height + _ballPad * 2;
         _cx = Position.X + DipToPx(tw) / 2;
         _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
         _fW = BallBorder.Width; _tW = TransferWidthDip;
         _fH = BallBorder.Height; _tH = TransferHeightDip;
         _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
@@ -1093,6 +1286,7 @@ public partial class FloatingBallWindow : Window
         var th = BallBorder.Height + _ballPad * 2;
         _cx = Position.X + DipToPx(tw) / 2;
         _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
         _fW = BallBorder.Width; _tW = _panelW;
         _fH = BallBorder.Height; _tH = _panelH;
         _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
@@ -1114,7 +1308,7 @@ public partial class FloatingBallWindow : Window
         _showSettings = false;
         _showDashboard = true;
         _contentFadeIn = true;
-        DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Êú™ËÆæÁΩÆ";
+        DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Œ¥…Ë÷√";
 
         _devicesLoaded = false;
         DashLoadingIndicator.IsVisible = true;
@@ -1141,8 +1335,7 @@ public partial class FloatingBallWindow : Window
                 var s = Screens.ScreenFromPoint(Position);
                 if (s?.WorkingArea is { } wa)
                 {
-                    if (x <= wa.X + DipToPx(_edgeSnap)) _snapL = true;
-                    else if (x + _ballWinW >= wa.X + wa.Width - DipToPx(_edgeSnap)) _snapR = true;
+                    // AutoSnapIfOffScreen handles snap detection
                 }
             }
         }
@@ -1158,6 +1351,30 @@ public partial class FloatingBallWindow : Window
             File.WriteAllText(PosFile, $"{Position.X},{Position.Y}");
         }
         catch { }
+    }
+
+    private void ClampToScreen()
+    {
+        var scr = Screens.ScreenFromPoint(Position);
+        if (scr?.WorkingArea is not { } wa) return;
+        var minVisible = DipToPx(16);
+        var x = Math.Clamp(Position.X, wa.X - _ballWinW + minVisible, wa.X + wa.Width - minVisible);
+        var y = Math.Clamp(Position.Y, wa.Y, wa.Y + wa.Height - minVisible);
+        if (x != Position.X || y != Position.Y) Position = new PixelPoint(x, y);
+    }
+
+    public void ResetPosition()
+    {
+        var s = Screens.Primary;
+        if (s?.WorkingArea is not { } wa) return;
+        _isPill = false; _pillGen++;
+        Position = new PixelPoint(wa.X + wa.Width / 2 - _ballWinW / 2,
+                                  wa.Y + wa.Height / 2 - _ballWinH / 2);
+        BallBorder.Width = _ballSize; BallBorder.Height = _ballSize;
+        BallBorder.CornerRadius = new CornerRadius(BallCR);
+        if (BallBorder.Clip is RectangleGeometry clip)
+        { clip.Rect = new Rect(0, 0, _ballSize, _ballSize); clip.RadiusX = BallCR; clip.RadiusY = BallCR; }
+        SavePos();
     }
 
     #endregion
@@ -1180,8 +1397,69 @@ public partial class FloatingBallWindow : Window
         var dx = cur.X - _ptrStart.X;
         var dy = cur.Y - _ptrStart.Y;
         if (!_dragging && (Math.Abs(dx) > _dragThresh || Math.Abs(dy) > _dragThresh))
-        { _dragging = true; _snapL = false; _snapR = false; }
-        if (_dragging) Position = new PixelPoint(_winStart.X + dx, _winStart.Y + dy);
+        {
+            _dragging = true;
+            if (_snapDir != SnapDir.None)
+            {
+                // Pill drag: reset start position to current, but keep pill shape
+                _ptrStart = cur;
+                _winStart = Position;
+            }
+        }
+        if (_dragging)
+        {
+            var x = _winStart.X + dx;
+            var y = _winStart.Y + dy;
+            var wa = GetScreenBounds();
+            if (wa != default)
+            {
+                if (_expanded)
+                {
+                    var halfW = _ballWinW / 2;
+                    var halfH = _ballWinH / 2;
+                    x = Math.Clamp(x, wa.X - halfW, wa.X + wa.Width - halfW);
+                    y = Math.Clamp(y, wa.Y, wa.Y + wa.Height - halfH);
+                }
+                else if (_snapDir != SnapDir.None)
+                {
+                    // Pill drag: allow free movement on screen, update orientation in real-time
+                    var padPx = DipToPx(_ballPad);
+                    var ballPx = DipToPx(_ballSize);
+                    x = Math.Clamp(x, wa.X - padPx, wa.X + wa.Width - padPx - ballPx);
+                    y = Math.Clamp(y, wa.Y - padPx, wa.Y + wa.Height - padPx - ballPx);
+
+                    // Detect which edge is closest and update pill orientation
+                    var pillW = (int)DipToPx(PillWidthDip);
+                    var pillH = (int)DipToPx(PillWidthDip);
+                    var cx = x + _ballWinW / 2;
+                    var cy = y + _ballWinH / 2;
+                    var distL = Math.Abs(cx - wa.X);
+                    var distR = Math.Abs(cx - (wa.X + wa.Width));
+                    var distT = Math.Abs(cy - wa.Y);
+                    var distB = Math.Abs(cy - (wa.Y + wa.Height));
+                    var minDist = Math.Min(Math.Min(distL, distR), Math.Min(distT, distB));
+
+                    SnapDir newDir;
+                    if (minDist == distL) newDir = SnapDir.Left;
+                    else if (minDist == distR) newDir = SnapDir.Right;
+                    else if (minDist == distT) newDir = SnapDir.Top;
+                    else newDir = SnapDir.Bottom;
+
+                    if (newDir != _snapDir)
+                    {
+                        ReorientPill(newDir);
+                    }
+                }
+                else
+                {
+                    var padPx = DipToPx(_ballPad);
+                    var ballPx = DipToPx(_ballSize);
+                    x = Math.Clamp(x, wa.X - padPx, wa.X + wa.Width - padPx - ballPx);
+                    y = Math.Clamp(y, wa.Y - padPx, wa.Y + wa.Height - padPx - ballPx);
+                }
+            }
+            Position = new PixelPoint(x, y);
+        }
     }
 
     private void OnPointerReleased(object? s, PointerReleasedEventArgs e)
@@ -1190,14 +1468,44 @@ public partial class FloatingBallWindow : Window
         _ptrDown = false;
         if (_dragging)
         {
-            _dragging = false; Snap(); SavePos();
-            if (_morphInProgress)
+            _dragging = false;
+            if (_snapDir != SnapDir.None)
             {
-                var tw = BallBorder.Width + _ballPad * 2;
-                var th = BallBorder.Height + _ballPad * 2;
-                _cx = Position.X + DipToPx(tw) / 2;
-                _cy = Position.Y + DipToPx(th) / 2;
+                // Was dragging a pill °™ check if still near an edge
+                var wa = GetScreenBounds();
+                if (wa != default)
+                {
+                    var distL = Math.Abs(Position.X - wa.X);
+                    var distR = Math.Abs((Position.X + _ballWinW) - (wa.X + wa.Width));
+                    var distT = Math.Abs(Position.Y - wa.Y);
+                    var distB = Math.Abs((Position.Y + _ballWinH) - (wa.Y + wa.Height));
+                    var minDist = Math.Min(Math.Min(distL, distR), Math.Min(distT, distB));
+                    var esPx = DipToPx(_edgeSnap);
+
+                    if (minDist <= esPx)
+                    {
+                        // Still near edge °™ re-snap
+                        if (minDist == distL) _snapDir = SnapDir.Left;
+                        else if (minDist == distR) _snapDir = SnapDir.Right;
+                        else if (minDist == distT) _snapDir = SnapDir.Top;
+                        else _snapDir = SnapDir.Bottom;
+                        MorphToPill();
+                        SnapFlush();
+                    }
+                    else
+                    {
+                        // Dragged away from edge °™ animated morph to ball
+                        _snapDir = SnapDir.None;
+                        MorphToBall();
+                    }
+                }
             }
+            else if (!_expanded)
+            {
+                // Normal ball drag °™ check if near edge for snap
+                SnapAndSlide();
+            }
+            SavePos();
         }
         else Click();
         e.Pointer.Capture(null);
@@ -1207,39 +1515,107 @@ public partial class FloatingBallWindow : Window
 
     #region Edge snap
 
-    private void Snap()
+    private void SnapAndSlide()
     {
-        var scr = Screens.ScreenFromPoint(Position);
-        if (scr?.WorkingArea is not { } wa) return;
+        var wa = GetScreenBounds();
+        if (wa == default) return;
         var esPx = DipToPx(_edgeSnap);
-        if (Position.X <= wa.X + esPx)
-        { Position = new PixelPoint(wa.X - _ballWinW + DipToPx(16), Position.Y); _snapL = true; }
-        else if (Position.X + _ballWinW >= wa.X + wa.Width - esPx)
-        { Position = new PixelPoint(wa.X + wa.Width - DipToPx(16), Position.Y); _snapR = true; }
-        SavePos();
+
+        var distL = Math.Abs(Position.X - wa.X);
+        var distR = Math.Abs((Position.X + _ballWinW) - (wa.X + wa.Width));
+        var distT = Math.Abs(Position.Y - wa.Y);
+        var distB = Math.Abs((Position.Y + _ballWinH) - (wa.Y + wa.Height));
+        var minDist = Math.Min(Math.Min(distL, distR), Math.Min(distT, distB));
+
+        if (minDist > esPx) return;
+
+        if (minDist == distL) _snapDir = SnapDir.Left;
+        else if (minDist == distR) _snapDir = SnapDir.Right;
+        else if (minDist == distT) _snapDir = SnapDir.Top;
+        else _snapDir = SnapDir.Bottom;
+
+        // Calculate target position °™ pill flush with edge, fully visible
+        var pad = (int)DipToPx(_ballPad);
+        var pillW = (int)DipToPx(PillWidthDip);
+        var pillH = (int)DipToPx(PillWidthDip);
+        int targetX = _snapDir switch
+        {
+            SnapDir.Left => wa.X - pad,
+            SnapDir.Right => wa.X + wa.Width - pad - pillW,
+            _ => Position.X
+        };
+        int targetY = _snapDir switch
+        {
+            SnapDir.Top => wa.Y - pad,
+            SnapDir.Bottom => wa.Y + wa.Height - pad - pillH,
+            _ => Position.Y
+        };
+
+        MorphToPill();
+
+        // Animate slide to edge
+        var startX = Position.X; var startY = Position.Y;
+        var gen = ++_slideGen; var sw = System.Diagnostics.Stopwatch.StartNew();
+        void Tick()
+        {
+            if (_slideGen != gen) return;
+            var t = Math.Min(sw.ElapsedMilliseconds / 300.0, 1.0);
+            var eased = EaseOutCubic(t);
+            Position = new PixelPoint(
+                (int)(startX + (targetX - startX) * eased),
+                (int)(startY + (targetY - startY) * eased));
+            if (t < 1) Dispatcher.UIThread.Post(Tick, DispatcherPriority.Render);
+            else SnapFlush(); // Final correction
+        }
+        Dispatcher.UIThread.Post(Tick, DispatcherPriority.Render);
     }
+
+    private uint _slideGen;
 
     private void OnPointerEntered(object? s, PointerEventArgs e)
     {
-        if (!_expanded && !_morphInProgress && (_snapL || _snapR))
-        { _hoverSnap = true; Slide(true); }
+        // Only scale hover °™ no morph, no slide
         if (!_expanded && !_morphInProgress) HoverIn();
     }
 
     private void OnPointerExited(object? s, PointerEventArgs e)
     {
-        if (_hoverSnap) { _hoverSnap = false; Slide(false); }
         if (!_expanded && !_morphInProgress) HoverOut();
     }
 
-    private void Slide(bool o)
+    private void AutoSnapIfOffScreen()
     {
-        var scr = Screens.ScreenFromPoint(Position);
-        if (scr?.WorkingArea is not { } wa) return;
-        if (o && _snapL) Position = new PixelPoint(wa.X, Position.Y);
-        else if (o && _snapR) Position = new PixelPoint(wa.X + wa.Width - _ballWinW, Position.Y);
-        else if (!o && _snapL) Position = new PixelPoint(wa.X - _ballWinW + DipToPx(16), Position.Y);
-        else if (!o && _snapR) Position = new PixelPoint(wa.X + wa.Width - DipToPx(16), Position.Y);
+        var wa = GetScreenBounds();
+        if (wa == default) return;
+
+        // Check if any part of the ball is off-screen
+        var ballL = Position.X;
+        var ballR = Position.X + _ballWinW;
+        var ballT = Position.Y;
+        var ballB = Position.Y + _ballWinH;
+        if (ballL >= wa.X && ballR <= wa.X + wa.Width && ballT >= wa.Y && ballB <= wa.Y + wa.Height)
+            return; // Fully on screen
+
+        // Find nearest edge
+        var distL = ballL - wa.X;         // distance from left edge (negative = off-screen)
+        var distR = wa.X + wa.Width - ballR; // distance from right edge
+        var distT = ballT - wa.Y;
+        var distB = wa.Y + wa.Height - ballB;
+        var minDist = Math.Min(Math.Min(distL, distR), Math.Min(distT, distB));
+
+        if (minDist == distL) _snapDir = SnapDir.Left;
+        else if (minDist == distR) _snapDir = SnapDir.Right;
+        else if (minDist == distT) _snapDir = SnapDir.Top;
+        else _snapDir = SnapDir.Bottom;
+
+        // Move ball to be fully on screen first, then snap
+        Position = new PixelPoint(
+            Math.Clamp(Position.X, wa.X, wa.X + wa.Width - _ballWinW),
+            Math.Clamp(Position.Y, wa.Y, wa.Y + wa.Height - _ballWinH));
+
+        MorphToPill();
+        SnapFlush();
+        SavePos();
     }
 
     #endregion
@@ -1280,6 +1656,113 @@ public partial class FloatingBallWindow : Window
         set { if (BallBorder.RenderTransform is ScaleTransform st) { st.ScaleX = value; st.ScaleY = value; } }
     }
 
+    // Pill morph: ball ? thin pill when edge-snapped
+    private void MorphToPill()
+    {
+        if (_isPill || _expanded || _morphInProgress) return;
+        _isPill = true;
+        var isHoriz = _snapDir is SnapDir.Top or SnapDir.Bottom;
+        _pillFromW = BallBorder.Width; _pillToW = isHoriz ? PillHeightDip : PillWidthDip;
+        _pillFromH = BallBorder.Height; _pillToH = isHoriz ? PillWidthDip : PillHeightDip;
+        _pillFromCR = BallBorder.CornerRadius.TopLeft; _pillToCR = PillCR;
+        _pillGen++; _pillT = 0; _pillTick = 0;
+        _pillSquash = true;
+        RequestAnimationFrame(PillTick);
+    }
+
+    private void MorphToBall()
+    {
+        if (!_isPill || _expanded || _morphInProgress) return;
+        _isPill = false;
+        _pillFromW = BallBorder.Width; _pillToW = _ballSize;
+        _pillFromH = BallBorder.Height; _pillToH = _ballSize;
+        _pillFromCR = BallBorder.CornerRadius.TopLeft; _pillToCR = BallCR;
+        _pillGen++; _pillT = 0; _pillTick = 0;
+        _pillSquash = false;
+        RequestAnimationFrame(PillTick);
+    }
+
+    private bool _pillSquash;
+
+    private void ReorientPill(SnapDir newDir)
+    {
+        var isHoriz = newDir is SnapDir.Top or SnapDir.Bottom;
+        var newW = isHoriz ? PillHeightDip : PillWidthDip;
+        var newH = isHoriz ? PillWidthDip : PillHeightDip;
+        // Skip if already correct dimensions
+        if (Math.Abs(BallBorder.Width - newW) < 0.5 && Math.Abs(BallBorder.Height - newH) < 0.5)
+            return;
+        _pillFromW = BallBorder.Width; _pillToW = newW;
+        _pillFromH = BallBorder.Height; _pillToH = newH;
+        _pillFromCR = BallBorder.CornerRadius.TopLeft; _pillToCR = PillCR;
+        _pillGen++; _pillT = 0; _pillTick = 0;
+        _pillSquash = true;
+        _isPill = true;
+        _snapDir = newDir;
+        RequestAnimationFrame(PillTick);
+    }
+
+    private void PillTick(TimeSpan now)
+    {
+        var g = _pillGen;
+        if (!Adv(now, ref _pillTick, ref _pillT, 0.6)) { if (_pillGen == g) RequestAnimationFrame(PillTick); return; }
+        var t = Clamp01(SpringNorm(_pillT, 0.32, 5.5, ComputeSpringEnd(0.32, 5.5)));
+
+        var tw = _pillSquash ? Clamp01(SpringNorm(Math.Min(_pillT * 1.1, 1), 0.32, 5.5, ComputeSpringEnd(0.32, 5.5))) : t;
+        var th = _pillSquash ? t : Clamp01(SpringNorm(Math.Min(_pillT * 1.1, 1), 0.32, 5.5, ComputeSpringEnd(0.32, 5.5)));
+
+        var w = L(_pillFromW, _pillToW, tw);
+        var h = L(_pillFromH, _pillToH, th);
+        var cr = L(_pillFromCR, _pillToCR, t);
+
+        BallBorder.Width = w;
+        BallBorder.Height = h;
+        BallBorder.CornerRadius = new CornerRadius(cr);
+        if (BallBorder.Clip is RectangleGeometry clip)
+        {
+            clip.Rect = new Rect(0, 0, w, h);
+            clip.RadiusX = cr;
+            clip.RadiusY = cr;
+        }
+
+        var iconScale = Math.Min(w, h) / _ballSize;
+        if (_mScale != null) { _mScale.ScaleX = iconScale; _mScale.ScaleY = iconScale; }
+
+        // Morph complete °™ snap to exact flush position
+        if (_pillT >= 1 && _snapDir != SnapDir.None)
+            SnapFlush();
+
+        if (_pillT < 1 && _pillGen == g) RequestAnimationFrame(PillTick);
+    }
+
+    private void SnapFlush()
+    {
+        var wa = GetScreenBounds();
+        if (wa == default) return;
+        var pad = (int)DipToPx(_ballPad);
+        var pillW = (int)DipToPx(PillWidthDip);  // 14 DIP (vertical) or used for horizontal
+        var pillH = (int)DipToPx(PillWidthDip);
+
+        // Pill fully visible, outer edge flush with screen edge
+        // Pill is at offset (pad, pad) inside the window
+        // For left snap: pill left edge = wa.X °˙ window left = wa.X - pad
+        // For right snap: pill right edge = wa.X+W °˙ window left = wa.X+W - pad - pillW
+        Position = _snapDir switch
+        {
+            SnapDir.Left =>   new PixelPoint(wa.X - pad, Position.Y),
+            SnapDir.Right =>  new PixelPoint(wa.X + wa.Width - pad - pillW, Position.Y),
+            SnapDir.Top =>    new PixelPoint(Position.X, wa.Y - pad),
+            SnapDir.Bottom => new PixelPoint(Position.X, wa.Y + wa.Height - pad - pillH),
+            _ => Position
+        };
+    }
+
+    private PixelRect GetScreenBounds()
+    {
+        var scr = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
+        return scr?.WorkingArea ?? default;
+    }
+
     #endregion
 
     #region Morph
@@ -1292,28 +1775,81 @@ public partial class FloatingBallWindow : Window
             if (_showSettings) DoSettingsCollapse();
             else DoCollapse();
         }
-        else DoExpand();
+        else
+        {
+            var fromSnap = _snapDir;
+            // Kill pill animation but DON'T reset shape °™ let DoExpand morph from pill°˙panel
+            _snapDir = SnapDir.None;
+            _isPill = false;
+            _pillGen++;
+            if (_vm.PendingRequests.Count > 0)
+                DoExpand(showApproval: true, fromSnap: fromSnap);
+            else
+                DoExpand(fromSnap: fromSnap);
+        }
     }
 
-    private void DoExpand(bool withTransfer = false, bool showApproval = false)
-    {
-        _hGen++; Sc = 1; _snapL = false; _snapR = false;
-        var tw = (int)(_ballSize + _ballPad * 2);
-        _cx = Position.X + DipToPx(tw) / 2;
-        _cy = Position.Y + DipToPx(tw) / 2;
-        _fW = BallBorder.Width;
-        _fH = BallBorder.Height;
-        _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
-        _iFx = IcoStartTx; _iFy = IcoStartTy; _iFs = IcoStartSc;
-        _iTx = _icoEndTx; _iTy = _icoEndTy; _iTs = _icoEndSc;
+    private SnapDir _expandFromSnap; // Remember which edge we expanded from
 
-        if (withTransfer)
+    private void DoExpand(bool withTransfer = false, bool showApproval = false, SnapDir fromSnap = SnapDir.None)
+    {
+        _expandFromSnap = fromSnap;
+        _morphFromPill = fromSnap != SnapDir.None;
+        _hGen++; Sc = 1;
+        var panelW = withTransfer ? TransferWidthDip : _panelW;
+        var panelH = withTransfer ? TransferHeightDip : _panelH;
+
+        // Current center (from pill or ball position)
+        _cx = Position.X + DipToPx(BallBorder.Width + _ballPad * 2) / 2;
+        _cy = Position.Y + DipToPx(BallBorder.Height + _ballPad * 2) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
+
+        // Target center: where the panel should end up
+        _tcx = _cx; _tcy = _cy;
+
+        var wa = GetScreenBounds();
+        if (fromSnap != SnapDir.None && wa != default)
         {
-            _tW = TransferWidthDip; _tH = TransferHeightDip;
+            var halfPanelW = DipToPx(panelW) / 2;
+            var halfPanelH = DipToPx(panelH) / 2;
+            var margin = DipToPx(24);
+
+            // Constrain target center so panel stays on screen
+            switch (fromSnap)
+            {
+                case SnapDir.Left:
+                    _tcx = Math.Max(_tcx, wa.X + halfPanelW + margin);
+                    break;
+                case SnapDir.Right:
+                    _tcx = Math.Min(_tcx, wa.X + wa.Width - halfPanelW - margin);
+                    break;
+                case SnapDir.Top:
+                    _tcy = Math.Max(_tcy, wa.Y + halfPanelH + margin);
+                    break;
+                case SnapDir.Bottom:
+                    _tcy = Math.Min(_tcy, wa.Y + wa.Height - halfPanelH - margin);
+                    break;
+            }
         }
         else
         {
-            _tW = _panelW; _tH = _panelH;
+            // Normal ball°˙panel: center stays fixed
+            _tcx = _cx; _tcy = _cy;
+        }
+
+        // Morph FROM current shape TO panel
+        _fW = BallBorder.Width;
+        _fH = BallBorder.Height;
+        _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
+        _iFx = _mTrans?.X ?? 0; _iFy = _mTrans?.Y ?? 0; _iFs = _mScale?.ScaleX ?? 1;
+        _iTx = _icoEndTx; _iTy = _icoEndTy; _iTs = _icoEndSc;
+        _tW = panelW; _tH = panelH;
+        _scx = _cx; _scy = _cy;
+
+        // Reset icon scale if coming from pill (icon was scaled down)
+        if (_mScale != null && _mScale.ScaleX < 0.9)
+        {
+            _iFx = 0; _iFy = 0; _iFs = _mScale.ScaleX;
         }
 
         DeviceNameDisplay.Text = _password?.DeviceName ?? Environment.MachineName;
@@ -1345,7 +1881,7 @@ public partial class FloatingBallWindow : Window
             SettingsPanel.IsVisible = false;
             DashboardPanel.IsVisible = false;
             SettingsBtn.IsVisible = false;
-            FileNamesText.Text = string.Join(", ", _vm!.QueuedFiles!.Select(Path.GetFileName));
+            UpdateFileInfo(_vm!.QueuedFiles!);
         }
         else
         {
@@ -1358,7 +1894,7 @@ public partial class FloatingBallWindow : Window
             DashboardPanel.Opacity = 0;
             SettingsBtn.IsVisible = true;
             _showDashboard = true;
-            DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Êú™ËÆæÁΩÆ";
+            DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "Œ¥…Ë÷√";
         }
 
         PanelContent.IsVisible = true;
@@ -1380,14 +1916,59 @@ public partial class FloatingBallWindow : Window
 
     private void DoCollapse()
     {
+        _morphFromPill = _expandFromSnap != SnapDir.None;
         _hGen++; Sc = 1;
         var tw = BallBorder.Width + _ballPad * 2;
         var th = BallBorder.Height + _ballPad * 2;
         _cx = Position.X + DipToPx(tw) / 2;
         _cy = Position.Y + DipToPx(th) / 2;
-        _fW = BallBorder.Width; _tW = _ballSize;
-        _fH = BallBorder.Height; _tH = _ballSize;
-        _fCR = BallBorder.CornerRadius.TopLeft; _tCR = BallCR;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
+
+        if (_expandFromSnap != SnapDir.None)
+        {
+            var isHoriz = _expandFromSnap is SnapDir.Top or SnapDir.Bottom;
+            _fW = BallBorder.Width; _tW = isHoriz ? PillHeightDip : PillWidthDip;
+            _fH = BallBorder.Height; _tH = isHoriz ? PillWidthDip : PillHeightDip;
+            _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PillCR;
+
+            // Target center = pill position at edge
+            var wa = GetScreenBounds();
+            if (wa != default)
+            {
+                var pad = DipToPx(_ballPad);
+                var pillWinW = DipToPx(_tW + _ballPad * 2);
+                var pillWinH = DipToPx(_tH + _ballPad * 2);
+                var pillWPx = DipToPx(_tW);
+                var pillHPx = DipToPx(_tH);
+                // Center = window position + half window size
+                // Window position matches SnapFlush: edge - pad
+                switch (_expandFromSnap)
+                {
+                    case SnapDir.Left:
+                        _tcx = wa.X - pad + pillWinW / 2; _tcy = _cy;
+                        break;
+                    case SnapDir.Right:
+                        _tcx = wa.X + wa.Width - pad - pillWPx + pillWinW / 2; _tcy = _cy;
+                        break;
+                    case SnapDir.Top:
+                        _tcx = _cx; _tcy = wa.Y - pad + pillWinH / 2;
+                        break;
+                    case SnapDir.Bottom:
+                        _tcx = _cx; _tcy = wa.Y + wa.Height - pad - pillHPx + pillWinH / 2;
+                        break;
+                }
+            }
+        }
+        else
+        {
+            _fW = BallBorder.Width; _tW = _ballSize;
+            _fH = BallBorder.Height; _tH = _ballSize;
+            _fCR = BallBorder.CornerRadius.TopLeft; _tCR = BallCR;
+            _tcx = _cx; _tcy = _cy; // Center stays fixed
+        }
+
+        _scx = _cx; _scy = _cy;
+
         _iFx = _mTrans?.X ?? 0; _iFy = _mTrans?.Y ?? 0; _iFs = _mScale?.ScaleX ?? 1;
         _iTx = IcoStartTx; _iTy = IcoStartTy; _iTs = IcoStartSc;
 
@@ -1419,13 +2000,54 @@ public partial class FloatingBallWindow : Window
             else if (_showTransfer) { _tW = TransferWidthDip; _tH = TransferHeightDip; }
             else { _tW = _panelW; _tH = _panelH; }
             _tCR = PanelCR;
+            _morphFromPill = false;
             PanelContent.IsVisible = true;
         }
-        else { _tW = _ballSize; _tH = _ballSize; _tCR = BallCR; }
-        var tw = BallBorder.Width + _ballPad * 2;
-        var th = BallBorder.Height + _ballPad * 2;
-        _cx = Position.X + DipToPx(tw) / 2;
-        _cy = Position.Y + DipToPx(th) / 2;
+        else
+        {
+            if (_expandFromSnap != SnapDir.None)
+            {
+                // Reverse back to pill, not ball
+                var isHoriz = _expandFromSnap is SnapDir.Top or SnapDir.Bottom;
+                _tW = isHoriz ? PillHeightDip : PillWidthDip;
+                _tH = isHoriz ? PillWidthDip : PillHeightDip;
+                _tCR = PillCR;
+                _morphFromPill = true;
+
+                // Set target center to pill position at edge
+                var wa = GetScreenBounds();
+                if (wa != default)
+                {
+                    var pillWinW = DipToPx(_tW + _ballPad * 2);
+                    var pillWinH = DipToPx(_tH + _ballPad * 2);
+                    _cx = Position.X + DipToPx(BallBorder.Width + _ballPad * 2) / 2;
+                    _cy = Position.Y + DipToPx(BallBorder.Height + _ballPad * 2) / 2;
+                    _scx = _cx; _scy = _cy;
+                    switch (_expandFromSnap)
+                    {
+                        case SnapDir.Left: _tcx = wa.X + pillWinW / 2; _tcy = _cy; break;
+                        case SnapDir.Right: _tcx = wa.X + wa.Width - pillWinW / 2; _tcy = _cy; break;
+                        case SnapDir.Top: _tcx = _cx; _tcy = wa.Y + pillWinH / 2; break;
+                        case SnapDir.Bottom: _tcx = _cx; _tcy = wa.Y + wa.Height - pillWinH / 2; break;
+                    }
+                }
+            }
+            else
+            {
+                _tW = _ballSize; _tH = _ballSize; _tCR = BallCR;
+                _morphFromPill = false;
+            }
+        }
+
+        if (_mDir || _expandFromSnap == SnapDir.None)
+        {
+            var tw = BallBorder.Width + _ballPad * 2;
+            var th = BallBorder.Height + _ballPad * 2;
+            _cx = Position.X + DipToPx(tw) / 2;
+            _cy = Position.Y + DipToPx(th) / 2;
+            _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
+        }
+
         _iFx = _mTrans?.X ?? 0; _iFy = _mTrans?.Y ?? 0; _iFs = _mScale?.ScaleX ?? 1;
         if (_mDir) { _iTx = _icoEndTx; _iTy = _icoEndTy; _iTs = _icoEndSc; _contentFadeIn = true; }
         else { _iTx = IcoStartTx; _iTy = IcoStartTy; _iTs = IcoStartSc; _contentFadeIn = false; }
@@ -1454,29 +2076,80 @@ public partial class FloatingBallWindow : Window
         { if (_mGen == g) RequestAnimationFrame(MorphTick); return; }
 
         var raw = _mT > 1 ? 1 : _mT;
-        var bt = Clamp01(SpringNorm(raw, BorderZeta, BorderOmega, BorderEndVal));
 
-        var w = L(_fW, _tW, bt); var h = L(_fH, _tH, bt);
+        if (raw >= 1)
+        {
+            BallBorder.Width = _tW; BallBorder.Height = _tH;
+            BallBorder.CornerRadius = new CornerRadius(_tCR);
+            if (BallBorder.Clip is RectangleGeometry clip)
+            { clip.Rect = new Rect(0, 0, _tW, _tH); clip.RadiusX = _tCR; clip.RadiusY = _tCR; }
+            if (!_dragging)
+            {
+                var ww = DipToPx(_tW + _ballPad * 2);
+                var wh = DipToPx(_tH + _ballPad * 2);
+                Position = new PixelPoint(_tcx - ww / 2, _tcy - wh / 2);
+            }
+            if (_mGen == g) EndMorph();
+            return;
+        }
 
-        // Corner radius: follows spring response directly for consistent motion
-        var crT = bt;
-        var minDim = Math.Min(w, h);
-        var circularCR = minDim / 2.0;
-        var linearCR = L(_fCR, _tCR, crT);
-        var blend = Clamp01((minDim / _ballSize - 1.0) / 3.0);
-        var cr = circularCR + (linearCR - circularCR) * SmoothStep(blend);
+        double w, h, cr;
+
+        if (_morphFromPill)
+        {
+            var wt = Clamp01(SpringNorm(raw, PillWZeta, PillWOmega, PillWEndVal));
+            var ht = Clamp01(SpringNorm(raw, PillHZeta, PillHOmega, PillHEndVal));
+            w = L(_fW, _tW, wt);
+            h = L(_fH, _tH, ht);
+
+            var posRaw = Clamp01(raw * 1.15);
+            var posT = Clamp01(SpringNorm(posRaw, PosZeta, PosOmega, PosEndVal));
+            var curCx = (int)L(_scx, _tcx, posT);
+            var curCy = (int)L(_scy, _tcy, posT);
+
+            var minDim = Math.Min(w, h);
+            var circularCR = minDim / 2.0;
+            var linearCR = L(_fCR, _tCR, wt);
+            var blend = Clamp01((minDim - 20) / 60.0);
+            cr = circularCR + (linearCR - circularCR) * SmoothStep(blend);
+
+            // Apply position
+            if (!_dragging)
+            {
+                var ww = DipToPx(w + _ballPad * 2);
+                var wh = DipToPx(h + _ballPad * 2);
+                Position = new PixelPoint(curCx - ww / 2, curCy - wh / 2);
+            }
+        }
+        else
+        {
+            var bt = Clamp01(SpringNorm(raw, BorderZeta, BorderOmega, BorderEndVal));
+            w = L(_fW, _tW, bt); h = L(_fH, _tH, bt);
+
+            var posT = EaseOutCubic(Clamp01(raw * 1.2));
+            var curCx = (int)L(_scx, _tcx, posT);
+            var curCy = (int)L(_scy, _tcy, posT);
+
+            var crT = bt;
+            var minDim = Math.Min(w, h);
+            var circularCR = minDim / 2.0;
+            var linearCR = L(_fCR, _tCR, crT);
+            var blend = Clamp01((minDim / _ballSize - 1.0) / 3.0);
+            cr = circularCR + (linearCR - circularCR) * SmoothStep(blend);
+
+            if (!_dragging)
+            {
+                var ww = DipToPx(w + _ballPad * 2);
+                var wh = DipToPx(h + _ballPad * 2);
+                Position = new PixelPoint(curCx - ww / 2, curCy - wh / 2);
+            }
+        }
 
         var sizeChanged = Math.Abs(w - _lastW) > 0.5 || Math.Abs(h - _lastH) > 0.5;
         var crChanged = Math.Abs(cr - _lastCR) > 0.3;
 
         if (sizeChanged)
         {
-            if (!_dragging)
-            {
-                var ww = DipToPx(w + _ballPad * 2);
-                var wh = DipToPx(h + _ballPad * 2);
-                Position = new PixelPoint(_cx - ww / 2, _cy - wh / 2);
-            }
             BallBorder.Width = w; BallBorder.Height = h;
             _lastW = w; _lastH = h;
             if (BallBorder.Clip is RectangleGeometry clip) clip.Rect = new Rect(0, 0, w, h);
@@ -1530,7 +2203,6 @@ public partial class FloatingBallWindow : Window
             DeviceNameDisplay.Opacity = contentT;
         }
 
-        if (raw >= 1) { if (_mGen == g) EndMorph(); return; }
         if (_mGen == g) RequestAnimationFrame(MorphTick);
     }
 
@@ -1552,6 +2224,19 @@ public partial class FloatingBallWindow : Window
             _showDashboard = false;
             SetMorphIcon(IcoStartTx, IcoStartTy, IcoStartSc);
             _lastItx = double.NaN;
+
+            if (_expandFromSnap != SnapDir.None)
+            {
+                // Collapsed back to pill °™ position already correct from morph
+                _snapDir = _expandFromSnap;
+                _isPill = true;
+            }
+            else
+            {
+                ClampToScreen();
+                AutoSnapIfOffScreen();
+            }
+            _expandFromSnap = SnapDir.None;
         }
         else
         {
@@ -1572,7 +2257,6 @@ public partial class FloatingBallWindow : Window
             else if (_showDashboard) { DashboardPanel.Opacity = 1; DeviceNameDisplay.Opacity = 0; SettingsBtn.IsVisible = true; }
             else { DeviceNameDisplay.Opacity = 1; SettingsBtn.IsVisible = true; }
         }
-        ApplyThemeColors(_isDark);
     }
 
     #endregion
@@ -1619,7 +2303,7 @@ public partial class FloatingBallWindow : Window
     private static double EaseOutCubic(double t) => 1 - (1 - t) * (1 - t) * (1 - t);
 
     // Apple deceleration curve: cubic-bezier(0.0, 0.0, 0.2, 1.0) approximation
-    // Snappy start, long smooth settle ‚Äî used in iOS/macOS modal transitions
+    // Snappy start, long smooth settle °™ used in iOS/macOS modal transitions
     private static double AppleDecelerate(double t) => 1 - Math.Pow(1 - t, 4);
 
     private static double L(double a, double b, double t) => a + (b - a) * t;
@@ -1648,11 +2332,8 @@ public partial class FloatingBallWindow : Window
         var wantDark = SettingsThemeToggle.IsChecked == true;
         var isDark = suki.ActiveBaseTheme == Avalonia.Styling.ThemeVariant.Dark;
         if (wantDark != isDark)
-        {
             suki.ChangeBaseTheme(wantDark ? Avalonia.Styling.ThemeVariant.Dark : Avalonia.Styling.ThemeVariant.Light);
-            _isDark = wantDark;
-            ApplyThemeColors(wantDark);
-        }
+        // ApplyThemeColors is called automatically via OnBaseThemeChanged callback
     }
 
     private void ApplyThemeColors(bool isDark)
@@ -1675,6 +2356,13 @@ public partial class FloatingBallWindow : Window
     private static void SetBrush(IResourceDictionary r, string key, string color)
     {
         r[key] = new SolidColorBrush(Color.Parse(color));
+    }
+
+    private static SolidColorBrush TryGetBrush(string key)
+    {
+        if (Application.Current?.TryFindResource(key, out var v) == true && v is SolidColorBrush b)
+            return b;
+        return new SolidColorBrush(Colors.Gray);
     }
 
     private void OnExitClick(object? s, RoutedEventArgs e)
