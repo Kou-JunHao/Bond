@@ -1194,6 +1194,7 @@ public partial class FloatingBallWindow : Window
 
     private void DoSettingsCollapse()
     {
+        SubnetPopup.IsOpen = false;
         _hGen++; Sc = 1;
         var tw = BallBorder.Width + _ballPad * 2;
         var th = BallBorder.Height + _ballPad * 2;
@@ -1772,6 +1773,7 @@ public partial class FloatingBallWindow : Window
         if (_morphInProgress) { ReverseMorph(); return; }
         if (_expanded)
         {
+            SubnetPopup.IsOpen = false;
             if (_showSettings) DoSettingsCollapse();
             else DoCollapse();
         }
@@ -1916,6 +1918,7 @@ public partial class FloatingBallWindow : Window
 
     private void DoCollapse()
     {
+        SubnetPopup.IsOpen = false;
         _morphFromPill = _expandFromSnap != SnapDir.None;
         _hGen++; Sc = 1;
         var tw = BallBorder.Width + _ballPad * 2;
