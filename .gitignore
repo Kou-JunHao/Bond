@@ -1,0 +1,48 @@
+# Build outputs
+bin/
+obj/
+publish/
+target/
+*.exe
+*.dll
+*.pdb
+*.user
+*.class
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.userprefs
+
+# Kilo
+.kilo/
+
+*.key
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# NuGet
+packages/
+*.nupkg
+
+# Java / Maven
+BondServer/**/target/
+BondServer/.mvn/maven/
+!BondServer/.mvn/wrapper/maven-wrapper.jar
+
+# Node.js
+node_modules/
+admin-web/dist/
+admin-web/.pnpm-store/
+*.tgz
+
+# Auth token
+BondClient/auth.json
+
+# Logs
+*.log

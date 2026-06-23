@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -21,16 +21,19 @@ public class TransferService : IDisposable
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
 
-    private CancellationTokenSource? _activeTransferCts;
-
-    private const int DataBufferSize = 524288; // 512KB — max throughput for GbE LAN
+    private const int DataBufferSize = 1048576; // 1MB
     private const int TcpSocketBufferSize = 2097152; // 2MB TCP window
     private const int ConnectTimeoutMs = 5000;
     private const int ProgressIntervalMs = 200;
-    private const int HeaderSize = 8; // int64 file length
+
+    // Parallel connection limits
+    private const int MaxParallelConnections = 4;
+    private const int MinFilesForParallel = 3;
+    private const long MinSizeForParallel = 20 * 1024 * 1024; // 20MB
 
     public event Action<TransferRequest, TcpClient>? IncomingRequest;
     public event Action<string>? TransferComplete;
+    public event Action<string>? ReceiveComplete;
     public event Action<string>? TransferFailed;
     public event Action<TransferProgress>? ProgressUpdated;
     public event Action? TransferStarted;
@@ -59,6 +62,8 @@ public class TransferService : IDisposable
     {
         _activeTransferCts?.Cancel();
     }
+
+    private CancellationTokenSource? _activeTransferCts;
 
     private async Task AcceptLoop(CancellationToken ct)
     {
@@ -99,16 +104,15 @@ public class TransferService : IDisposable
 
     private static void ConfigureSocketForBulk(TcpClient client)
     {
-        client.NoDelay = false; // Nagle ON for bulk — TCP coalesces into MSS-sized segments
+        client.NoDelay = false;
         client.SendBufferSize = TcpSocketBufferSize;
         client.ReceiveBufferSize = TcpSocketBufferSize;
         client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-        client.Client.SetSocketOption(SocketOptionLevel.Tcp, (SocketOptionName)3, true); // TCP_NODELAY off during bulk
     }
 
     private static void ConfigureSocketForHandshake(TcpClient client)
     {
-        client.NoDelay = true; // Nagle OFF for handshake — low latency for small control messages
+        client.NoDelay = true;
         client.SendBufferSize = TcpSocketBufferSize;
         client.ReceiveBufferSize = TcpSocketBufferSize;
     }
@@ -117,14 +121,14 @@ public class TransferService : IDisposable
     {
         var jsonLen = BinaryPrimitives.ReadInt32BigEndian(await ReadBytes(stream, 4, ct));
         var json = Encoding.UTF8.GetString(await ReadBytes(stream, jsonLen, ct));
-        var request = JsonSerializer.Deserialize<TransferRequest>(json);
+        var request = JsonSerializer.Deserialize(json, BondJsonContext.Default.TransferRequest);
 
         if (request == null) { await WriteResponse(stream, TransferResponse.Rejected); return; }
 
         if (!_password.HasPassword)
         {
             await WriteResponse(stream, TransferResponse.Approved);
-            ConfigureSocketForBulk(client); // Switch to bulk mode after handshake
+            ConfigureSocketForBulk(client);
             await ReceiveFiles(stream, request.Files, request.TotalSize, ct);
             return;
         }
@@ -174,14 +178,20 @@ public class TransferService : IDisposable
     private readonly ConcurrentDictionary<string, TaskCompletionSource<TransferResponse>>
         _pendingResponses = new();
 
+    // ???????????????????????????????????????????????????
+    //  Receive ? unchanged, already concurrent-safe
+    // ???????????????????????????????????????????????????
+
     private async Task ReceiveFiles(NetworkStream stream, List<FileEntry> files, long totalSize, CancellationToken ct)
     {
         var downloadDir = _password.DownloadPath;
         if (!Directory.Exists(downloadDir)) Directory.CreateDirectory(downloadDir);
 
+        var dataFiles = files.Where(f => !f.IsDirectory).ToList();
+
         var progress = new TransferProgress
         {
-            TotalFiles = Enumerable.Count(files, f => !f.IsDirectory),
+            TotalFiles = dataFiles.Count,
             TotalBytes = totalSize,
             IsTransferring = true
         };
@@ -189,40 +199,40 @@ public class TransferService : IDisposable
 
         var speedWatch = Stopwatch.StartNew();
         long speedBytes = 0;
-        int fileIndex = 0;
-        string? currentFile = null;
 
-        // Double-buffer: read into bufA while writing bufB to disk
         var bufA = new byte[DataBufferSize];
         var bufB = new byte[DataBufferSize];
         var readBuf = bufA;
         var writeBuf = bufB;
+        int bytesRead = 0;
 
         try
         {
-            for (int i = 0; i < files.Count; i++)
+            foreach (var entry in files.Where(f => f.IsDirectory))
             {
-                var entry = files[i];
+                var dirPath = Path.Combine(downloadDir, entry.RelativePath);
+                if (!Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
+            }
+
+            for (int i = 0; i < dataFiles.Count; i++)
+            {
+                var entry = dataFiles[i];
                 var fullPath = Path.Combine(downloadDir, entry.RelativePath);
                 var dir = Path.GetDirectoryName(fullPath)!;
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-                if (entry.IsDirectory) continue;
-
-                currentFile = fullPath;
-                var fileLen = BinaryPrimitives.ReadInt64BigEndian(await ReadBytes(stream, 8, ct));
+                var fileLen = entry.Size;
                 long received = 0;
 
                 progress.FileName = entry.RelativePath;
                 progress.FileTotalBytes = fileLen;
                 progress.FileBytesTransferred = 0;
-                progress.FilesCompleted = fileIndex;
+                progress.FilesCompleted = i;
 
                 await using var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, DataBufferSize);
 
-                // First read
                 var toRead = (int)Math.Min(readBuf.Length, fileLen - received);
-                var bytesRead = await stream.ReadAsync(readBuf.AsMemory(0, toRead), ct);
+                bytesRead = await stream.ReadAsync(readBuf.AsMemory(0, toRead), ct);
                 if (bytesRead == 0) throw new IOException("Connection closed");
                 received += bytesRead;
                 speedBytes += bytesRead;
@@ -230,24 +240,16 @@ public class TransferService : IDisposable
                 while (received < fileLen)
                 {
                     ct.ThrowIfCancellationRequested();
-
-                    // Swap buffers: current read becomes write, previous write becomes read
                     (readBuf, writeBuf) = (writeBuf, readBuf);
-
-                    // Start network read into readBuf (parallel with disk write of writeBuf)
                     toRead = (int)Math.Min(readBuf.Length, fileLen - received);
                     var readTask = stream.ReadAsync(readBuf.AsMemory(0, toRead), ct);
-
-                    // Write previous buffer to disk
                     await fs.WriteAsync(writeBuf.AsMemory(0, bytesRead), ct);
-
-                    // Wait for network read
                     bytesRead = await readTask;
                     if (bytesRead == 0) throw new IOException("Connection closed");
                     received += bytesRead;
                     speedBytes += bytesRead;
 
-                    progress.BytesTransferred = received;
+                    progress.BytesTransferred += bytesRead;
                     progress.FileBytesTransferred = received;
 
                     if (speedWatch.ElapsedMilliseconds >= ProgressIntervalMs)
@@ -259,13 +261,10 @@ public class TransferService : IDisposable
                     }
                 }
 
-                // Write final chunk
                 await fs.WriteAsync(readBuf.AsMemory(0, bytesRead), ct);
-                await fs.FlushAsync(ct);
-                currentFile = null;
-                fileIndex++;
-                progress.FilesCompleted = fileIndex;
+                progress.FilesCompleted = i + 1;
                 TransferComplete?.Invoke(entry.RelativePath);
+                ReceiveComplete?.Invoke(entry.RelativePath);
             }
 
             progress.IsTransferring = false;
@@ -275,15 +274,23 @@ public class TransferService : IDisposable
         }
         catch
         {
-            if (currentFile != null)
+            try
             {
-                try { if (File.Exists(currentFile)) File.Delete(currentFile); } catch { }
+                var idx = Math.Min(progress.FilesCompleted, dataFiles.Count - 1);
+                if (idx >= 0)
+                {
+                    var f = Path.Combine(downloadDir, dataFiles[idx].RelativePath);
+                    if (File.Exists(f)) File.Delete(f);
+                }
             }
+            catch { }
             throw;
         }
     }
 
-    // ── Send side ──
+    // ???????????????????????????????????????????????????
+    //  Send ? parallel connections
+    // ???????????????????????????????????????????????????
 
     public async Task<TransferResponse> SendFiles(DeviceInfo target, string[] localPaths, string? password, CancellationToken ct)
     {
@@ -292,16 +299,7 @@ public class TransferService : IDisposable
 
         try
         {
-            using var client = new TcpClient();
-            ConfigureSocketForHandshake(client); // Low latency for handshake
-
-            var connectTask = client.ConnectAsync(target.Ip, target.Port, linkedCt).AsTask();
-            if (await Task.WhenAny(connectTask, Task.Delay(ConnectTimeoutMs, linkedCt)) != connectTask)
-                throw new TimeoutException($"连接 {target.Name}({target.Ip}) 超时");
-
-            await connectTask;
-            using var stream = client.GetStream();
-
+            // Collect all file entries
             var entries = new List<FileEntry>();
             long totalSize = 0;
             foreach (var path in localPaths)
@@ -319,7 +317,30 @@ public class TransferService : IDisposable
                 }
             }
 
-            var request = new TransferRequest
+            var dataEntries = entries.Where(e => !e.IsDirectory).ToList();
+
+            // Determine parallelism
+            int connCount = CalcConnectionCount(dataEntries.Count, totalSize);
+
+            // Shared state for progress aggregation
+            var shared = new TransferSharedState();
+            shared.TotalFiles = dataEntries.Count;
+            shared.TotalBytes = totalSize;
+            shared.SpeedWatch = Stopwatch.StartNew();
+
+            var progress = new TransferProgress
+            {
+                TotalFiles = dataEntries.Count,
+                TotalBytes = totalSize,
+                IsTransferring = true
+            };
+            TransferStarted?.Invoke();
+
+            // Split files into groups
+            var groups = SplitIntoGroups(dataEntries, connCount);
+
+            // Build request template
+            var requestTemplate = new TransferRequest
             {
                 FromId = _password.DeviceId,
                 FromName = _password.DeviceName,
@@ -328,122 +349,36 @@ public class TransferService : IDisposable
                 Password = password
             };
 
-            // Send request header
-            stream.WriteByte(0x01);
-            var json = JsonSerializer.Serialize(request);
-            var jsonBytes = Encoding.UTF8.GetBytes(json);
-            var lenBuf = new byte[4];
-            BinaryPrimitives.WriteInt32BigEndian(lenBuf, jsonBytes.Length);
-            await stream.WriteAsync(lenBuf, linkedCt);
-            await stream.WriteAsync(jsonBytes, linkedCt);
-            await stream.FlushAsync(linkedCt);
-
-            var response = (TransferResponse)await ReadByte(stream, linkedCt);
-            if (response != TransferResponse.Approved)
-                return response;
-
-            // Switch to bulk mode for data transfer
-            ConfigureSocketForBulk(client);
-
-            var progress = new TransferProgress
+            // Launch parallel connections
+            var tasks = new List<Task<bool>>();
+            for (int g = 0; g < groups.Count; g++)
             {
-                TotalFiles = Enumerable.Count(entries, e => !e.IsDirectory),
-                TotalBytes = totalSize,
-                IsTransferring = true
-            };
-            TransferStarted?.Invoke();
-
-            var speedWatch = Stopwatch.StartNew();
-            long speedBytes = 0;
-            int fileIndex = 0;
-
-            // Pre-allocated header+data buffer to avoid Nagle delay between header and first chunk
-            var headerBuf = new byte[HeaderSize];
-            var dataBuf = new byte[DataBufferSize];
-
-            for (int i = 0; i < entries.Count; i++)
-            {
-                var entry = entries[i];
-                if (entry.IsDirectory) continue;
-
-                var localPath = FindLocalPath(localPaths, entry.RelativePath);
-                if (localPath == null) continue;
-
-                var fi = new FileInfo(localPath);
-
-                progress.FileName = entry.RelativePath;
-                progress.FileTotalBytes = fi.Length;
-                progress.FileBytesTransferred = 0;
-                progress.FilesCompleted = fileIndex;
-
-                await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, DataBufferSize);
-                long sent = 0;
-
-                // Read first chunk from disk
-                var toRead = (int)Math.Min(dataBuf.Length, fi.Length - sent);
-                var read = await fs.ReadAsync(dataBuf.AsMemory(0, toRead), linkedCt);
-
-                // Batch: write header (8 bytes) + first data chunk in one call
-                // This avoids Nagle delay between header and data
-                BinaryPrimitives.WriteInt64BigEndian(headerBuf, fi.Length);
-                var combined = new byte[HeaderSize + read];
-                headerBuf.CopyTo(combined, 0);
-                dataBuf.AsSpan(0, read).CopyTo(combined.AsSpan(HeaderSize));
-                await stream.WriteAsync(combined, linkedCt);
-                sent += read;
-                speedBytes += read;
-
-                progress.BytesTransferred += read;
-                progress.FileBytesTransferred = sent;
-
-                // Stream remaining data
-                while (sent < fi.Length)
-                {
-                    linkedCt.ThrowIfCancellationRequested();
-                    toRead = (int)Math.Min(dataBuf.Length, fi.Length - sent);
-                    read = await fs.ReadAsync(dataBuf.AsMemory(0, toRead), linkedCt);
-                    if (read == 0) break;
-                    await stream.WriteAsync(dataBuf.AsMemory(0, read), linkedCt);
-                    sent += read;
-                    speedBytes += read;
-
-                    progress.BytesTransferred += read;
-                    progress.FileBytesTransferred = sent;
-
-                    if (speedWatch.ElapsedMilliseconds >= ProgressIntervalMs)
-                    {
-                        progress.Speed = speedBytes / (speedWatch.ElapsedMilliseconds / 1000.0);
-                        speedBytes = 0;
-                        speedWatch.Restart();
-                        ProgressUpdated?.Invoke(progress);
-                    }
-                }
-
-                await stream.FlushAsync(linkedCt);
-                fileIndex++;
-                progress.FilesCompleted = fileIndex;
-                TransferComplete?.Invoke(entry.RelativePath);
+                var group = groups[g];
+                tasks.Add(Task.Run(() =>
+                    SendGroup(target, requestTemplate, group, localPaths,
+                        progress, shared, linkedCt), linkedCt));
             }
+
+            var results = await Task.WhenAll(tasks);
+            var allOk = results.All(r => r);
 
             progress.IsTransferring = false;
             progress.Speed = 0;
             ProgressUpdated?.Invoke(progress);
             TransferEnded?.Invoke();
 
-            return TransferResponse.Approved;
+            return allOk ? TransferResponse.Approved : TransferResponse.Rejected;
         }
         catch (OperationCanceledException)
         {
-            var p = new TransferProgress { IsTransferring = false, IsCancelled = true };
-            ProgressUpdated?.Invoke(p);
+            ProgressUpdated?.Invoke(new TransferProgress { IsTransferring = false, IsCancelled = true });
             TransferEnded?.Invoke();
             return TransferResponse.Rejected;
         }
         catch (Exception ex)
         {
             TransferFailed?.Invoke(ex.Message);
-            var p = new TransferProgress { IsTransferring = false };
-            ProgressUpdated?.Invoke(p);
+            ProgressUpdated?.Invoke(new TransferProgress { IsTransferring = false });
             TransferEnded?.Invoke();
             return TransferResponse.Rejected;
         }
@@ -453,6 +388,130 @@ public class TransferService : IDisposable
             _activeTransferCts = null;
         }
     }
+
+    private async Task<bool> SendGroup(
+        DeviceInfo target,
+        TransferRequest requestTemplate,
+        List<FileEntry> groupFiles,
+        string[] localPaths,
+        TransferProgress sharedProgress,
+        TransferSharedState shared,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            ConfigureSocketForHandshake(client);
+
+            var connectTask = client.ConnectAsync(target.Ip, target.Port, ct).AsTask();
+            if (await Task.WhenAny(connectTask, Task.Delay(ConnectTimeoutMs, ct)) != connectTask)
+                throw new TimeoutException($"?? {target.Name}({target.Ip}) ??");
+
+            await connectTask;
+            using var stream = client.GetStream();
+
+            // Send handshake with this group's subset
+            var groupRequest = new TransferRequest
+            {
+                FromId = requestTemplate.FromId,
+                FromName = requestTemplate.FromName,
+                Files = requestTemplate.Files, // full file list for receiver to know all files
+                TotalSize = requestTemplate.TotalSize,
+                Password = requestTemplate.Password
+            };
+
+            stream.WriteByte(0x01);
+            var json = JsonSerializer.Serialize(groupRequest, BondJsonContext.Default.TransferRequest);
+            var jsonBytes = Encoding.UTF8.GetBytes(json);
+            var lenBuf = new byte[4];
+            BinaryPrimitives.WriteInt32BigEndian(lenBuf, jsonBytes.Length);
+            await stream.WriteAsync(lenBuf, ct);
+            await stream.WriteAsync(jsonBytes, ct);
+            await stream.FlushAsync(ct);
+
+            var response = (TransferResponse)await ReadByte(stream, ct);
+            if (response != TransferResponse.Approved)
+                return false;
+
+            ConfigureSocketForBulk(client);
+
+            var dataBuf = new byte[DataBufferSize];
+
+            for (int i = 0; i < groupFiles.Count; i++)
+            {
+                var entry = groupFiles[i];
+                var localPath = FindLocalPath(localPaths, entry.RelativePath);
+                if (localPath == null) continue;
+
+                var fi = new FileInfo(localPath);
+                await using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, DataBufferSize);
+                long sent = 0;
+
+                while (sent < fi.Length)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var toRead = (int)Math.Min(dataBuf.Length, fi.Length - sent);
+                    var read = await fs.ReadAsync(dataBuf.AsMemory(0, toRead), ct);
+                    if (read == 0) break;
+                    await stream.WriteAsync(dataBuf.AsMemory(0, read), ct);
+                    sent += read;
+
+                    Interlocked.Add(ref shared.GlobalBytesSent, read);
+                    Interlocked.Add(ref shared.SpeedBytes, read);
+
+                    sharedProgress.BytesTransferred = Interlocked.Read(ref shared.GlobalBytesSent);
+                    sharedProgress.FileBytesTransferred = sent;
+
+                    if (shared.SpeedWatch.ElapsedMilliseconds >= ProgressIntervalMs)
+                    {
+                        var sb = Interlocked.Exchange(ref shared.SpeedBytes, 0);
+                        sharedProgress.Speed = sb / (shared.SpeedWatch.ElapsedMilliseconds / 1000.0);
+                        shared.SpeedWatch.Restart();
+                        ProgressUpdated?.Invoke(sharedProgress);
+                    }
+                }
+
+                var completed = Interlocked.Increment(ref shared.GlobalFilesCompleted);
+                sharedProgress.FilesCompleted = completed;
+                sharedProgress.FileName = entry.RelativePath;
+                TransferComplete?.Invoke(entry.RelativePath);
+            }
+
+            await stream.FlushAsync(ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TransferFailed?.Invoke(ex.Message);
+            return false;
+        }
+    }
+
+    private static int CalcConnectionCount(int fileCount, long totalSize)
+    {
+        if (fileCount < MinFilesForParallel && totalSize < MinSizeForParallel)
+            return 1;
+
+        // Heuristic: 1 connection per ~100MB or ~20 files, capped at MaxParallelConnections
+        int bySize = (int)Math.Ceiling(totalSize / (100.0 * 1024 * 1024));
+        int byCount = (int)Math.Ceiling(fileCount / 20.0);
+        return Math.Clamp(Math.Max(bySize, byCount), 1, MaxParallelConnections);
+    }
+
+    private static List<List<FileEntry>> SplitIntoGroups(List<FileEntry> files, int groupCount)
+    {
+        var groups = new List<List<FileEntry>>();
+        for (int i = 0; i < groupCount; i++)
+            groups.Add(new List<FileEntry>());
+
+        // Distribute files round-robin (preserves ordering for progress display)
+        for (int i = 0; i < files.Count; i++)
+            groups[i % groupCount].Add(files[i]);
+
+        return groups;
+    }
+
+    // ?? Helpers ??
 
     private static void CollectEntries(DirectoryInfo root, string basePath, List<FileEntry> entries, ref long totalSize)
     {
@@ -524,5 +583,15 @@ public class TransferService : IDisposable
         _listener?.Stop();
         _cts?.Dispose();
         _activeTransferCts?.Dispose();
+    }
+
+    private class TransferSharedState
+    {
+        public long GlobalBytesSent;
+        public int GlobalFilesCompleted;
+        public long SpeedBytes;
+        public int TotalFiles;
+        public long TotalBytes;
+        public Stopwatch SpeedWatch = null!;
     }
 }

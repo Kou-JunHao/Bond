@@ -3,8 +3,10 @@ package com.bond.transfer.controller;
 import com.bond.common.dto.Result;
 import com.bond.common.dto.WorkspaceDTO;
 import com.bond.common.dto.WorkspaceFileDTO;
+import com.bond.common.dto.InvitationDTO;
 import com.bond.common.enums.WorkspaceRole;
 import com.bond.transfer.service.WorkspaceService;
+import com.bond.transfer.service.WorkspaceInvitationService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
@@ -22,6 +24,7 @@ import java.util.List;
 public class WorkspaceController {
 
     private final WorkspaceService workspaceService;
+    private final WorkspaceInvitationService invitationService;
 
     @PostMapping
     public Result<WorkspaceDTO> create(@RequestHeader("X-User-Id") Long userId,
@@ -103,6 +106,42 @@ public class WorkspaceController {
         return Result.ok();
     }
 
+    // ── Invitation APIs ──
+
+    @PostMapping("/{id}/invite/link")
+    public Result<String> generateInviteLink(@RequestHeader("X-User-Id") Long userId,
+                                             @PathVariable Long id) {
+        return Result.ok(invitationService.generateInviteLink(id, userId));
+    }
+
+    @PostMapping("/{id}/invite/friend")
+    public Result<Void> inviteFriend(@RequestHeader("X-User-Id") Long userId,
+                                     @PathVariable Long id,
+                                     @RequestBody InviteFriendRequest req) {
+        invitationService.inviteFriend(id, userId, req.getUserId(),
+                req.getRole() != null ? req.getRole() : WorkspaceRole.MEMBER.getValue());
+        return Result.ok();
+    }
+
+    @GetMapping("/invitations")
+    public Result<List<InvitationDTO>> getInvitations(@RequestHeader("X-User-Id") Long userId) {
+        return Result.ok(invitationService.getPendingInvitations(userId));
+    }
+
+    @PostMapping("/invitations/{invId}/accept")
+    public Result<Void> acceptInvitation(@RequestHeader("X-User-Id") Long userId,
+                                         @PathVariable Long invId) {
+        invitationService.acceptInvitation(invId, userId);
+        return Result.ok();
+    }
+
+    @PostMapping("/invitations/{invId}/reject")
+    public Result<Void> rejectInvitation(@RequestHeader("X-User-Id") Long userId,
+                                         @PathVariable Long invId) {
+        invitationService.rejectInvitation(invId, userId);
+        return Result.ok();
+    }
+
     @Data
     static class CreateWorkspaceRequest {
         private String name;
@@ -117,6 +156,12 @@ public class WorkspaceController {
 
     @Data
     static class AddMemberRequest {
+        private Long userId;
+        private Integer role;
+    }
+
+    @Data
+    static class InviteFriendRequest {
         private Long userId;
         private Integer role;
     }

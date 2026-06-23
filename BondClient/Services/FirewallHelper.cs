@@ -92,7 +92,6 @@ public static class FirewallHelper
         }
         catch (COMException)
         {
-            // No admin rights — can't add rules via COM
             return false;
         }
         catch
@@ -175,5 +174,5 @@ public class FirewallStatus
     public bool HasTcpRule { get; set; }
     public bool NeedsPublicApproval { get; set; }
 
-    public string ProfileName => IsDomain ? "域网络" : IsPrivate ? "专用网络" : IsPublic ? "公共网络" : "未知";
+    public string ProfileName => IsDomain ? "Domain" : IsPrivate ? "Private" : IsPublic ? "Public" : "Unknown";
 }

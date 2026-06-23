@@ -40,6 +40,10 @@ public partial class FloatingBallWindow : Window
     private const double TransferHeightDip = 460.0;
     private const double SettingsWidthDip = 560.0;
     private const double SettingsHeightDip = 460.0;
+    private const double WorkspaceWidthDip = 480.0;
+    private const double WorkspaceHeightDip = 520.0;
+    private const double LoginWidthDip = 380.0;
+    private const double LoginHeightDip = 480.0;
     private const double PanelCR = 16.0;
     private const double BallCR = 28.0;
     private const double PillWidthDip = 14.0;
@@ -73,6 +77,7 @@ public partial class FloatingBallWindow : Window
 
     private bool _ptrDown, _dragging;
     private PixelPoint _ptrStart, _winStart;
+    private long _lastClickTick;
     private enum SnapDir { None, Left, Right, Top, Bottom }
     private SnapDir _snapDir = SnapDir.None;
     private bool _expanded;
@@ -136,6 +141,20 @@ public partial class FloatingBallWindow : Window
     private DiscoveryService _discovery = null!;
     private TransferService _transfer = null!;
     private TransferViewModel _vm = null!;
+    private ApiClient? _apiClient;
+    private AuthService? _authService;
+    private WorkspaceService? _workspaceService;
+
+    // Workspace
+    private bool _showWorkspace;
+
+    // Login
+    private bool _showLogin;
+    private bool _isLoginRegisterMode;
+    private bool _loginDone;
+
+    // Approval detail
+    private PendingRequest? _selectedApproval;
 
     // Rainbow
     private DispatcherTimer? _rainbowTimer;
@@ -153,6 +172,13 @@ public partial class FloatingBallWindow : Window
             _mScale = tg.Children[0] as ScaleTransform;
             _mTrans = tg.Children[1] as TranslateTransform;
         }
+    }
+
+    public FloatingBallWindow(ApiClient apiClient, AuthService authService) : this()
+    {
+        _apiClient = apiClient;
+        _authService = authService;
+        _workspaceService = new WorkspaceService(apiClient);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -191,6 +217,18 @@ public partial class FloatingBallWindow : Window
 
         DragDrop.AddDragOverHandler(this, OnDragOver);
         DragDrop.AddDropHandler(this, OnDrop);
+
+        if (_authService?.IsLoggedIn == true)
+        {
+            _loginDone = true;
+        }
+        else
+        {
+            DispatcherTimer.RunOnce(() =>
+            {
+                DoMorphToLogin();
+            }, TimeSpan.FromMilliseconds(600));
+        }
     }
 
     #region SVG Icon
@@ -301,6 +339,9 @@ public partial class FloatingBallWindow : Window
         // Check firewall status for LAN compatibility
         _ = Task.Run(() => CheckFirewall());
 
+        // Set up account card based on login state
+        SetupAccountCard();
+
         _rainbowTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
         _rainbowTimer.Tick += OnRainbowTick;
 
@@ -334,9 +375,12 @@ public partial class FloatingBallWindow : Window
     private void OnPendingRequestsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         ApprovalCount.Text = _vm.PendingRequests.Count > 0 ? $"({_vm.PendingRequests.Count})" : "";
+        RebuildApprovalList();
         if (_vm.PendingRequests.Count == 0)
         {
             ApprovalPanel.IsVisible = false;
+            ApprovalListView.IsVisible = true;
+            ApprovalDetailView.IsVisible = false;
             StopRainbow();
             _approvalCountdown?.Stop();
 
@@ -350,6 +394,70 @@ public partial class FloatingBallWindow : Window
         }
     }
 
+    private void RebuildApprovalList()
+    {
+        ApprovalListPanel.Children.Clear();
+        foreach (var req in _vm.PendingRequests)
+        {
+            var card = new SukiUI.Controls.GlassCard { Padding = new Avalonia.Thickness(12), Margin = new Avalonia.Thickness(0, 0, 0, 6), IsOpaque = true, Cursor = new Cursor(StandardCursorType.Hand) };
+            var dock = new DockPanel();
+
+            var infoStack = new StackPanel { Spacing = 2, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            var nameRow = new Grid();
+            nameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            nameRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            var personIcon = new Avalonia.Controls.Shapes.Path { Width = 14, Height = 14, Data = GetStreamGeometry("Ico.Person"), Stroke = TryGetBrush("BondStroke") };
+            Grid.SetColumn(personIcon, 0);
+            var nameText = new TextBlock { Text = req.FromName, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = TryGetBrush("BondPrimary"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(6, 0, 0, 0) };
+            Grid.SetColumn(nameText, 1);
+            nameRow.Children.Add(personIcon);
+            nameRow.Children.Add(nameText);
+            infoStack.Children.Add(nameRow);
+
+            var detailRow = new Grid();
+            detailRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            detailRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            var docIcon = new Avalonia.Controls.Shapes.Path { Width = 14, Height = 14, Data = GetStreamGeometry("Ico.Document"), Stroke = TryGetBrush("BondStroke") };
+            Grid.SetColumn(docIcon, 0);
+            var detailText = new TextBlock { Text = $"{req.FileCount} 个文件  {req.TotalSize}", FontSize = 11, Foreground = TryGetBrush("BondSecondary"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(6, 0, 0, 0) };
+            Grid.SetColumn(detailText, 1);
+            detailRow.Children.Add(docIcon);
+            detailRow.Children.Add(detailText);
+            infoStack.Children.Add(detailRow);
+
+            DockPanel.SetDock(infoStack, Dock.Left);
+            dock.Children.Add(infoStack);
+
+            var arrow = new TextBlock { Text = "\u276F", FontSize = 14, Foreground = TryGetBrush("BondDisabled"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
+            dock.Children.Add(arrow);
+
+            card.Content = dock;
+            card.PointerPressed += (_, _) => ShowApprovalDetail(req);
+            ApprovalListPanel.Children.Add(card);
+        }
+    }
+
+    private void ShowApprovalDetail(PendingRequest req)
+    {
+        _selectedApproval = req;
+        ApprovalListView.IsVisible = false;
+        ApprovalDetailView.IsVisible = true;
+        DetailFromName.Text = req.FromName;
+        DetailFromIp.Text = req.FromIp;
+        DetailFileCount.Text = req.FileCount.ToString();
+        DetailTotalSize.Text = req.TotalSize;
+        DetailCountdown.Text = req.CountdownText;
+        var fileNames = req.FileList.Split(", ").Select(f => (object)f).ToList();
+        DetailFileList.ItemsSource = fileNames;
+    }
+
+    private void OnApprovalBackToList(object? sender, RoutedEventArgs e)
+    {
+        _selectedApproval = null;
+        ApprovalDetailView.IsVisible = false;
+        ApprovalListView.IsVisible = true;
+    }
+
     private void ShowDeviceList()
     {
         DashLoadingIndicator.IsVisible = false;
@@ -359,8 +467,8 @@ public partial class FloatingBallWindow : Window
 
     private void UpdateFileInfo(string[] files)
     {
-        var names = string.Join(", ", files.Select(Path.GetFileName));
-        FileNamesText.Text = names;
+        var names = files.Select(f => Path.GetFileName(f) ?? f).ToList();
+        FileListControl.ItemsSource = names;
         FileCountLabel.Text = files.Length > 1 ? $"({files.Length} 个文件)" : "";
     }
 
@@ -390,6 +498,269 @@ public partial class FloatingBallWindow : Window
             }
         }
         catch { }
+    }
+
+    private void SetupAccountCard()
+    {
+        if (_authService?.IsLoggedIn == true)
+        {
+            DashAccountCard.IsVisible = true;
+            DashLoginCard.IsVisible = false;
+            DashAccountName.Text = _authService.CurrentUser?.Nickname ?? _authService.CurrentUser?.Username ?? "";
+            DashAccountStatus.Text = "已登录";
+        }
+        else
+        {
+            DashAccountCard.IsVisible = false;
+            DashLoginCard.IsVisible = true;
+        }
+    }
+
+    private void DoMorphToLogin()
+    {
+        _hGen++; Sc = 1;
+        var tw = BallBorder.Width + _ballPad * 2;
+        var th = BallBorder.Height + _ballPad * 2;
+        _cx = Position.X + DipToPx(tw) / 2;
+        _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
+        _fW = BallBorder.Width; _tW = LoginWidthDip;
+        _fH = BallBorder.Height; _tH = LoginHeightDip;
+        _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
+        _iFx = _mTrans?.X ?? 0; _iFy = _mTrans?.Y ?? 0; _iFs = _mScale?.ScaleX ?? 1;
+        _iTx = _icoEndTx; _iTy = _icoEndTy; _iTs = _icoEndSc;
+
+        DeviceNameDisplay.Opacity = 0;
+        DashboardPanel.IsVisible = false; DashboardPanel.Opacity = 0;
+        ApprovalPanel.IsVisible = false; ApprovalPanel.Opacity = 0;
+        TransferPanel.IsVisible = false; TransferPanel.Opacity = 0;
+        SettingsPanel.IsVisible = false; SettingsPanel.Opacity = 0;
+        WorkspacePanel.IsVisible = false; WorkspacePanel.Opacity = 0;
+        SettingsBtn.IsVisible = false;
+
+        LoginPanel.IsVisible = true;
+        LoginPanel.Opacity = 0;
+        _isLoginRegisterMode = false;
+        LoginSubmitText.Text = "登录";
+        LoginToggleText.Text = "没有账号？去注册";
+        LoginError.Text = "";
+
+        PanelContent.IsVisible = true;
+        PanelContent.Opacity = 0;
+        _showLogin = true;
+        _showDashboard = false;
+        _showSettings = false;
+        _showTransfer = false;
+        _showApproval = false;
+        _showWorkspace = false;
+        _contentFadeIn = true;
+
+        StartMorph(true);
+    }
+
+    private void OnLoginToggleMode(object? sender, RoutedEventArgs e)
+    {
+        _isLoginRegisterMode = !_isLoginRegisterMode;
+        if (_isLoginRegisterMode)
+        {
+            LoginSubmitText.Text = "注册";
+            LoginToggleText.Text = "已有账号？去登录";
+        }
+        else
+        {
+            LoginSubmitText.Text = "登录";
+            LoginToggleText.Text = "没有账号？去注册";
+        }
+        LoginError.Text = "";
+    }
+
+    private async void OnLoginSubmit(object? sender, RoutedEventArgs e)
+    {
+        if (_authService == null) return;
+        var username = LoginUsername.Text?.Trim();
+        var password = LoginPassword.Text;
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        {
+            LoginError.Text = "请输入用户名和密码";
+            return;
+        }
+
+        LoginSubmitBtn.IsEnabled = false;
+        LoginError.Text = "";
+
+        try
+        {
+            bool ok;
+            string? err;
+            if (_isLoginRegisterMode)
+            {
+                (ok, err) = await _authService.RegisterAsync(username, password, username);
+            }
+            else
+            {
+                (ok, err) = await _authService.LoginAsync(username, password);
+            }
+
+            if (ok)
+            {
+                OnLoginSuccess();
+            }
+            else
+            {
+                LoginError.Text = err ?? (_isLoginRegisterMode ? "注册失败" : "登录失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            LoginError.Text = ex.Message;
+        }
+        finally
+        {
+            LoginSubmitBtn.IsEnabled = true;
+        }
+    }
+
+    private void OnLanOnlyClick(object? sender, RoutedEventArgs e)
+    {
+        _authService?.Logout();
+        OnLoginSuccess();
+    }
+
+    private void OnLoginSuccess()
+    {
+        _loginDone = true;
+        SetupAccountCard();
+        LoginUsername.Text = "";
+        LoginPassword.Text = "";
+        LoginError.Text = "";
+        DoMorphToDashboard();
+    }
+
+    private async void OnDashOpenWorkspace(object? sender, RoutedEventArgs e)
+    {
+        if (_morphInProgress || !_expanded) return;
+        if (_workspaceService == null)
+        {
+            ShowToast("请先登录以使用工作区", ToastType.Info);
+            return;
+        }
+        try
+        {
+            await LoadWorkspaceList();
+            DoMorphToWorkspace();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"加载工作区失败: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private void OnDashLogin(object? sender, RoutedEventArgs e)
+    {
+        if (_morphInProgress || !_expanded) return;
+        _loginDone = false;
+        DoMorphToLogin();
+    }
+
+    private async Task LoadWorkspaceList()
+    {
+        if (_workspaceService == null) return;
+        try
+        {
+            var list = await _workspaceService.ListWorkspacesAsync();
+            WsListPanel.Children.Clear();
+            if (list == null || list.Count == 0)
+            {
+                WsEmptyHint.IsVisible = true;
+                return;
+            }
+            WsEmptyHint.IsVisible = false;
+            foreach (var ws in list)
+            {
+                var card = new SukiUI.Controls.GlassCard { Padding = new Avalonia.Thickness(12), Margin = new Avalonia.Thickness(0, 0, 0, 6), IsOpaque = true, Cursor = new Cursor(StandardCursorType.Hand) };
+                var dock = new DockPanel();
+
+                var infoStack = new StackPanel { Spacing = 1, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+                infoStack.Children.Add(new TextBlock { Text = ws.Name, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = TryGetBrush("BondPrimary") });
+                infoStack.Children.Add(new TextBlock { Text = $"{ws.UsedSize / (1024 * 1024)}MB / {ws.MaxSize / (1024 * 1024)}MB", FontSize = 11, Foreground = TryGetBrush("BondTertiary") });
+
+                var icon = new Avalonia.Controls.Shapes.Path { Width = 16, Height = 16, Data = GetStreamGeometry("Ico.Folder"), Stroke = TryGetBrush("BondStroke"), Margin = new Avalonia.Thickness(0, 0, 10, 0) };
+                var leftStack = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 0 };
+                leftStack.Children.Add(icon);
+                leftStack.Children.Add(infoStack);
+                DockPanel.SetDock(leftStack, Dock.Left);
+                dock.Children.Add(leftStack);
+
+                dock.Children.Add(new TextBlock { Text = "\u276F", FontSize = 14, Foreground = TryGetBrush("BondDisabled"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right });
+
+                card.Content = dock;
+                var capturedWs = ws;
+                card.PointerPressed += (_, _) => OpenWorkspace(capturedWs.Id);
+                WsListPanel.Children.Add(card);
+            }
+        }
+        catch
+        {
+            WsEmptyHint.IsVisible = true;
+        }
+    }
+
+    private async void OpenWorkspace(long workspaceId)
+    {
+        _currentWorkspaceId = workspaceId;
+        WorkspaceListView.IsVisible = false;
+        WorkspaceFilesView.IsVisible = true;
+        WsPathDisplay.Text = "/";
+        try { await LoadWorkspaceFiles(); } catch { }
+    }
+
+    private long? _currentWorkspaceId;
+
+    private async Task LoadWorkspaceFiles()
+    {
+        if (_workspaceService == null || _currentWorkspaceId == null) return;
+        try
+        {
+            var files = await _workspaceService.ListFilesAsync(_currentWorkspaceId.Value);
+            WsFileList.ItemsSource = files?.Select(f => f.FileName).ToList();
+        }
+        catch { }
+    }
+
+    private async void OnCreateWorkspace(object? sender, RoutedEventArgs e)
+    {
+        if (_workspaceService == null) return;
+        var name = WsNewName.Text?.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            ShowToast("请输入工作区名称", ToastType.Info);
+            return;
+        }
+        try
+        {
+            var ws = await _workspaceService.CreateWorkspaceAsync(name, null);
+            if (ws != null)
+            {
+                WsNewName.Text = "";
+                await LoadWorkspaceList();
+                ShowToast("工作区创建成功", ToastType.Success);
+            }
+            else
+            {
+                ShowToast("创建工作区失败", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"创建工作区失败: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private void OnWsBackToList(object? sender, RoutedEventArgs e)
+    {
+        WorkspaceListView.IsVisible = true;
+        WorkspaceFilesView.IsVisible = false;
+        WsPathDisplay.Text = "";
     }
 
     private void OnTransferStarted()
@@ -466,23 +837,24 @@ public partial class FloatingBallWindow : Window
 
     private void OnApproveRequest(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.DataContext is PendingRequest req)
+        var req = _selectedApproval;
+        if (req == null && sender is Button btn) req = btn.DataContext as PendingRequest;
+        if (req == null) return;
+        _vm.ApproveRequest(req);
+        _selectedApproval = null;
+        if (_expanded && !_morphInProgress)
         {
-            _vm.ApproveRequest(req);
-            // Switch to transfer panel to show receive progress
-            if (_expanded && !_morphInProgress)
-            {
-                DoMorphToTransfer();
-            }
+            DoMorphToTransfer();
         }
     }
 
     private void OnRejectRequest(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.DataContext is PendingRequest req)
-        {
-            _vm.RejectRequest(req);
-        }
+        var req = _selectedApproval;
+        if (req == null && sender is Button btn) req = btn.DataContext as PendingRequest;
+        if (req == null) return;
+        _vm.RejectRequest(req);
+        _selectedApproval = null;
     }
 
     #endregion
@@ -802,7 +1174,7 @@ public partial class FloatingBallWindow : Window
     private void OnBackToDashboard(object? sender, RoutedEventArgs e)
     {
         if (_morphInProgress) return;
-        if (_expanded && !TransferPanel.IsVisible && !ApprovalPanel.IsVisible)
+        if (_expanded && !TransferPanel.IsVisible && !ApprovalPanel.IsVisible && !WorkspacePanel.IsVisible)
         {
             return;
         }
@@ -1027,16 +1399,18 @@ public partial class FloatingBallWindow : Window
     {
         if (!_expanded) return;
         if (_showSettings) DoSettingsCollapse();
-        if (_showTransfer || _showApproval) DoMorphToDashboard();
+        if (_showLogin) DoMorphToDashboard();
+        if (_showTransfer || _showApproval || _showWorkspace) DoMorphToDashboard();
     }
 
     private void DebugGoTransfer(object? sender, RoutedEventArgs e)
     {
         if (!_expanded) return;
-        _vm.QueuedFiles = ["debug_test.txt"];
+        _vm.QueuedFiles = ["测试文档.pdf", "照片合集.jpg", "项目代码.zip", "演示视频.mp4"];
         UpdateFileInfo(_vm.QueuedFiles);
         _vm.RefreshDevices();
         if (_showSettings) DoSettingsCollapse();
+        if (_showLogin) DoMorphToDashboard();
         if (!_showTransfer) DoMorphToTransfer();
     }
 
@@ -1147,6 +1521,35 @@ public partial class FloatingBallWindow : Window
         ShowToast($"已清除 {fakes.Count} 个测试请求", ToastType.Info);
     }
 
+    private void DebugGoLogin(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        _loginDone = false;
+        if (_showSettings) DoSettingsCollapse();
+        DoMorphToLogin();
+    }
+
+    private void DebugGoWorkspace(object? sender, RoutedEventArgs e)
+    {
+        if (!_expanded) return;
+        if (_showSettings) DoSettingsCollapse();
+        _ = LoadWorkspaceList();
+        DoMorphToWorkspace();
+    }
+
+    private void DebugResetLogin(object? sender, RoutedEventArgs e)
+    {
+        _loginDone = false;
+        _authService?.Logout();
+        SetupAccountCard();
+        if (_expanded)
+        {
+            if (_showSettings) DoSettingsCollapse();
+            DoMorphToLogin();
+        }
+        ShowToast("登录状态已重置", ToastType.Info);
+    }
+
     #endregion
 
     private void DoSettingsExpand()
@@ -1247,6 +1650,42 @@ public partial class FloatingBallWindow : Window
         StartMorph(true);
     }
 
+    private void DoMorphToWorkspace()
+    {
+        _hGen++; Sc = 1;
+        var tw = BallBorder.Width + _ballPad * 2;
+        var th = BallBorder.Height + _ballPad * 2;
+        _cx = Position.X + DipToPx(tw) / 2;
+        _cy = Position.Y + DipToPx(th) / 2;
+        _scx = _cx; _scy = _cy; _tcx = _cx; _tcy = _cy;
+        _fW = BallBorder.Width; _tW = WorkspaceWidthDip;
+        _fH = BallBorder.Height; _tH = WorkspaceHeightDip;
+        _fCR = BallBorder.CornerRadius.TopLeft; _tCR = PanelCR;
+        _iFx = _mTrans?.X ?? 0; _iFy = _mTrans?.Y ?? 0; _iFs = _mScale?.ScaleX ?? 1;
+        _iTx = _icoEndTx; _iTy = _icoEndTy; _iTs = _icoEndSc;
+
+        DeviceNameDisplay.Opacity = 0;
+        ApprovalPanel.IsVisible = false; ApprovalPanel.Opacity = 0;
+        TransferPanel.IsVisible = false; TransferPanel.Opacity = 0;
+        DashboardPanel.IsVisible = false; DashboardPanel.Opacity = 0;
+        SettingsPanel.IsVisible = false; SettingsPanel.Opacity = 0;
+        SettingsBtn.IsVisible = false;
+
+        WorkspacePanel.IsVisible = true;
+        WorkspacePanel.Opacity = 0;
+        WorkspaceListView.IsVisible = true;
+        WorkspaceFilesView.IsVisible = false;
+
+        _showWorkspace = true;
+        _showSettings = false;
+        _showTransfer = false;
+        _showApproval = false;
+        _showDashboard = false;
+        _contentFadeIn = true;
+
+        StartMorph(true);
+    }
+
     private void DoMorphToTransfer()
     {
         _hGen++; Sc = 1;
@@ -1299,6 +1738,8 @@ public partial class FloatingBallWindow : Window
         TransferProgressMode.IsVisible = false; TransferProgressMode.Opacity = 0;
         _showTransferProgress = false;
         SettingsPanel.IsVisible = false; SettingsPanel.Opacity = 0;
+        WorkspacePanel.IsVisible = false; WorkspacePanel.Opacity = 0;
+        LoginPanel.IsVisible = false; LoginPanel.Opacity = 0;
         ApprovalPanel.IsVisible = false; ApprovalPanel.Opacity = 0;
         DashboardPanel.IsVisible = true; DashboardPanel.Opacity = 0;
         DeviceNameDisplay.Opacity = 0;
@@ -1307,6 +1748,8 @@ public partial class FloatingBallWindow : Window
         _showTransfer = false;
         _showApproval = false;
         _showSettings = false;
+        _showWorkspace = false;
+        _showLogin = false;
         _showDashboard = true;
         _contentFadeIn = true;
         DashPasswordDisplay.Text = _password?.HasPassword == true ? _password.Password : "未设置";
@@ -1376,6 +1819,18 @@ public partial class FloatingBallWindow : Window
         if (BallBorder.Clip is RectangleGeometry clip)
         { clip.Rect = new Rect(0, 0, _ballSize, _ballSize); clip.RadiusX = BallCR; clip.RadiusY = BallCR; }
         SavePos();
+    }
+
+    public void SafeToggleVisibility()
+    {
+        if (_morphInProgress) return;
+        if (IsVisible)
+            Hide();
+        else
+        {
+            Show();
+            Activate();
+        }
     }
 
     #endregion
@@ -1508,7 +1963,26 @@ public partial class FloatingBallWindow : Window
             }
             SavePos();
         }
-        else Click();
+        else
+        {
+            if (_expanded)
+            {
+                var now = Environment.TickCount64;
+                if (now - _lastClickTick < 350)
+                {
+                    _lastClickTick = 0;
+                    Click();
+                }
+                else
+                {
+                    _lastClickTick = now;
+                }
+            }
+            else
+            {
+                Click();
+            }
+        }
         e.Pointer.Capture(null);
     }
 
@@ -1775,19 +2249,27 @@ public partial class FloatingBallWindow : Window
         {
             SubnetPopup.IsOpen = false;
             if (_showSettings) DoSettingsCollapse();
+            else if (_showWorkspace) DoMorphToDashboard();
+            else if (_showLogin) DoCollapse();
             else DoCollapse();
         }
         else
         {
             var fromSnap = _snapDir;
-            // Kill pill animation but DON'T reset shape — let DoExpand morph from pill→panel
             _snapDir = SnapDir.None;
             _isPill = false;
             _pillGen++;
-            if (_vm.PendingRequests.Count > 0)
-                DoExpand(showApproval: true, fromSnap: fromSnap);
+            if (_authService?.IsLoggedIn == true || _loginDone)
+            {
+                if (_vm?.PendingRequests.Count > 0)
+                    DoExpand(showApproval: true, fromSnap: fromSnap);
+                else
+                    DoExpand(fromSnap: fromSnap);
+            }
             else
-                DoExpand(fromSnap: fromSnap);
+            {
+                DoMorphToLogin();
+            }
         }
     }
 
@@ -2000,6 +2482,8 @@ public partial class FloatingBallWindow : Window
         if (_mDir)
         {
             if (_showSettings) { _tW = SettingsWidthDip; _tH = SettingsHeightDip; }
+            else if (_showWorkspace) { _tW = WorkspaceWidthDip; _tH = WorkspaceHeightDip; }
+            else if (_showLogin) { _tW = LoginWidthDip; _tH = LoginHeightDip; }
             else if (_showTransfer) { _tW = TransferWidthDip; _tH = TransferHeightDip; }
             else { _tW = _panelW; _tH = _panelH; }
             _tCR = PanelCR;
@@ -2167,17 +2651,35 @@ public partial class FloatingBallWindow : Window
         var it = Clamp01(SpringNorm(raw, IconZeta, IconOmega, IconEndVal));
         SetMorphIcon(L(_iFx, _iTx, it), L(_iFy, _iTy, it), L(_iFs, _iTs, it));
 
-        // Content fade: Apple-style delayed ease-out
-        // Expand: content appears after shape is ~40% done
+        // Content fade: spring-based delayed fade with subtle slide
+        // Expand: content appears after shape is ~40% done, slides in from left
         // Collapse: content disappears in first 30%
         if (_contentFadeIn)
         {
-            var contentT = raw < 0.45 ? 0 : EaseOutCubic((raw - 0.45) / 0.55);
+            var contentRaw = raw < 0.4 ? 0 : Clamp01((raw - 0.4) / 0.6);
+            var contentT = Clamp01(SpringNorm(contentRaw, 0.7, 6.0, ComputeSpringEnd(0.7, 6.0)));
+            var slideX = (1 - contentT) * -8; // Slide from left
+
             PanelContent.Opacity = contentT;
+            if (PanelContent.RenderTransform is TranslateTransform ct)
+            { ct.X = slideX; }
+            else
+            { PanelContent.RenderTransform = new TranslateTransform(slideX, 0); }
+
             if (_showSettings)
             {
                 DeviceNameDisplay.Opacity = 0;
                 SettingsPanel.Opacity = contentT;
+            }
+            else if (_showWorkspace)
+            {
+                DeviceNameDisplay.Opacity = 0;
+                WorkspacePanel.Opacity = contentT;
+            }
+            else if (_showLogin)
+            {
+                DeviceNameDisplay.Opacity = 0;
+                LoginPanel.Opacity = contentT;
             }
             else if (_showApproval)
             {
@@ -2203,6 +2705,8 @@ public partial class FloatingBallWindow : Window
         {
             var contentT = raw < 0.25 ? 1 - EaseOutCubic(raw / 0.25) : 0;
             PanelContent.Opacity = contentT;
+            if (PanelContent.RenderTransform is TranslateTransform ct)
+            { ct.X = (1 - contentT) * -8; }
             DeviceNameDisplay.Opacity = contentT;
         }
 
@@ -2213,6 +2717,9 @@ public partial class FloatingBallWindow : Window
     {
         _morphInProgress = false;
         ToastContainer.IsVisible = true;
+        // Reset content slide transform
+        if (PanelContent.RenderTransform is TranslateTransform ct)
+        { ct.X = 0; }
         if (!_mDir)
         {
             _expanded = false;
@@ -2221,10 +2728,13 @@ public partial class FloatingBallWindow : Window
             ApprovalPanel.IsVisible = false; ApprovalPanel.Opacity = 0;
             TransferPanel.IsVisible = false; TransferPanel.Opacity = 0;
             SettingsPanel.IsVisible = false; SettingsPanel.Opacity = 0;
+            LoginPanel.IsVisible = false; LoginPanel.Opacity = 0;
+            WorkspacePanel.IsVisible = false; WorkspacePanel.Opacity = 0;
             DashboardPanel.IsVisible = false; DashboardPanel.Opacity = 0;
             SettingsBtn.IsVisible = false;
             _showSettings = false;
             _showDashboard = false;
+            _showLogin = false;
             SetMorphIcon(IcoStartTx, IcoStartTy, IcoStartSc);
             _lastItx = double.NaN;
 
@@ -2249,6 +2759,18 @@ public partial class FloatingBallWindow : Window
             {
                 DeviceNameDisplay.Opacity = 0;
                 SettingsPanel.Opacity = 1;
+                SettingsBtn.IsVisible = false;
+            }
+            else if (_showWorkspace)
+            {
+                DeviceNameDisplay.Opacity = 0;
+                WorkspacePanel.Opacity = 1;
+                SettingsBtn.IsVisible = false;
+            }
+            else if (_showLogin)
+            {
+                DeviceNameDisplay.Opacity = 0;
+                LoginPanel.Opacity = 1;
                 SettingsBtn.IsVisible = false;
             }
             else if (_showApproval)
@@ -2366,6 +2888,13 @@ public partial class FloatingBallWindow : Window
         if (Application.Current?.TryFindResource(key, out var v) == true && v is SolidColorBrush b)
             return b;
         return new SolidColorBrush(Colors.Gray);
+    }
+
+    private static StreamGeometry? GetStreamGeometry(string key)
+    {
+        if (Application.Current?.TryFindResource(key, out var v) == true && v is StreamGeometry g)
+            return g;
+        return null;
     }
 
     private void OnExitClick(object? s, RoutedEventArgs e)

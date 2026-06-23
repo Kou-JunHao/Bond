@@ -10,12 +10,30 @@
         </Style>
         <Style Selector="Path">
             <Setter Property="Fill" Value="Transparent" />
-            <Setter Property="Stroke" Value="{DynamicResource BondTertiary}" />
-            <Setter Property="StrokeThickness" Value="1.6" />
+            <Setter Property="Stroke" Value="{DynamicResource BondStroke}" />
+            <Setter Property="StrokeThickness" Value="1.5" />
             <Setter Property="StrokeLineCap" Value="Round" />
             <Setter Property="StrokeJoin" Value="Round" />
             <Setter Property="Stretch" Value="Uniform" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="1" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        </Style>
+        <!-- Outlined button: hover only tints border, no fill -->
+        <Style Selector="Button.outlined:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        </Style>
+        <Style Selector="Button.outlined:pressed">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+            <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        </Style>
+        <!-- Basic button: no visible hover change -->
+        <Style Selector="Button.basic:pointerover">
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </Application.Styles>
     <Application.Resources>
@@ -31,6 +49,7 @@
         <SolidColorBrush x:Key="BondSuccess" Color="#FF5D7358" />
         <SolidColorBrush x:Key="BondError" Color="#FFA34A42" />
         <SolidColorBrush x:Key="BondStroke" Color="#FF9A948B" />
+        <SolidColorBrush x:Key="BondPrimaryButtonText" Color="#FFFFFFFF" />
         <!-- Icons -->
         <StreamGeometry x:Key="Ico.Settings">M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051 2.34 2.34 0 0 0 9.67 4.136zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
         <StreamGeometry x:Key="Ico.ChevronLeft">M15 18l-6-6 6-6</StreamGeometry>

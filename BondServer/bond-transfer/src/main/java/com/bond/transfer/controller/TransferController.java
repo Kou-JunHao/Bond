@@ -39,34 +39,39 @@ public class TransferController {
     }
 
     @GetMapping("/tasks/{id}")
-    public Result<TransferTaskDTO> getTask(@PathVariable Long id) {
-        return Result.ok(transferService.getTask(id));
+    public Result<TransferTaskDTO> getTask(@RequestHeader("X-User-Id") Long userId,
+                                           @PathVariable Long id) {
+        return Result.ok(transferService.getTask(id, userId));
     }
 
     @DeleteMapping("/tasks/{id}")
-    public Result<Void> deleteTask(@PathVariable Long id) {
-        transferService.deleteTask(id);
+    public Result<Void> deleteTask(@RequestHeader("X-User-Id") Long userId,
+                                   @PathVariable Long id) {
+        transferService.deleteTask(id, userId);
         return Result.ok();
     }
 
     @PostMapping("/tasks/{id}/complete")
-    public Result<Void> completeTask(@PathVariable Long id) throws Exception {
-        transferService.completeTask(id);
+    public Result<Void> completeTask(@RequestHeader("X-User-Id") Long userId,
+                                     @PathVariable Long id) throws Exception {
+        transferService.completeTask(id, userId);
         return Result.ok();
     }
 
     @PostMapping("/chunks/{taskId}/init")
-    public Result<Map<String, String>> initUpload(@PathVariable Long taskId) throws Exception {
-        String uploadId = transferService.initMultipartUpload(taskId);
+    public Result<Map<String, String>> initUpload(@RequestHeader("X-User-Id") Long userId,
+                                                  @PathVariable Long taskId) throws Exception {
+        String uploadId = transferService.initMultipartUpload(taskId, userId);
         return Result.ok(Map.of("uploadId", uploadId));
     }
 
     @PutMapping("/chunks/{taskId}/{index}")
-    public Result<ChunkDTO> uploadChunk(@PathVariable Long taskId,
+    public Result<ChunkDTO> uploadChunk(@RequestHeader("X-User-Id") Long userId,
+                                        @PathVariable Long taskId,
                                         @PathVariable int index,
-                                        @RequestParam String uploadId,
+                                        @RequestParam(required = false) String uploadId,
                                         @RequestParam MultipartFile file) throws Exception {
-        return Result.ok(transferService.uploadChunk(taskId, index, uploadId, file.getInputStream(), file.getSize()));
+        return Result.ok(transferService.uploadChunk(taskId, index, uploadId, file.getInputStream(), file.getSize(), userId));
     }
 
     @GetMapping("/chunks/{taskId}/{index}")
@@ -74,7 +79,7 @@ public class TransferController {
                                                               @PathVariable int index) throws Exception {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                .body(new InputStreamResource(transferService.downloadChunk(taskId, index)));
+                .body(new InputStreamResource(transferService.downloadFile(taskId)));
     }
 
     @GetMapping("/chunks/{taskId}/status")

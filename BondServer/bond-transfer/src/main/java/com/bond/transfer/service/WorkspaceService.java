@@ -31,15 +31,34 @@ public class WorkspaceService {
     private final WorkspaceMemberMapper memberMapper;
     private final WorkspaceFileMapper fileMapper;
     private final MinioService minioService;
+    private final ConfigService configService;
 
     @Transactional
     public WorkspaceDTO createWorkspace(Long userId, String name, String description) {
+        // ── Creation limit ──
+        int maxCreate = configService.getInt("workspace.max_create", 3);
+        long createdCount = workspaceMapper.selectCount(
+                new LambdaQueryWrapper<Workspace>().eq(Workspace::getOwnerId, userId));
+        if (createdCount >= maxCreate) {
+            throw new BusinessException(400, "已达到最大创建工作区数量(" + maxCreate + ")");
+        }
+
+        // ── Join limit ──
+        int maxJoin = configService.getInt("workspace.max_join", 10);
+        long joinCount = memberMapper.selectCount(
+                new LambdaQueryWrapper<WorkspaceMember>().eq(WorkspaceMember::getUserId, userId));
+        if (joinCount >= maxJoin) {
+            throw new BusinessException(400, "已达到最大加入工作区数量(" + maxJoin + ")");
+        }
+
+        long maxSize = configService.getLong("workspace.max_size", 5368709120L);
+
         Workspace ws = new Workspace();
         ws.setId(SnowflakeId.nextId());
         ws.setName(name);
         ws.setDescription(description);
         ws.setOwnerId(userId);
-        ws.setMaxSize(10737418240L);
+        ws.setMaxSize(maxSize);
         ws.setUsedSize(0L);
         workspaceMapper.insert(ws);
 
@@ -89,6 +108,15 @@ public class WorkspaceService {
 
     public void addMember(Long workspaceId, Long userId, Long targetUserId, WorkspaceRole role) {
         checkRole(workspaceId, userId, WorkspaceRole.OWNER, WorkspaceRole.ADMIN);
+
+        // ── Member limit ──
+        int maxMembers = configService.getInt("workspace.max_members", 20);
+        long memberCount = memberMapper.selectCount(
+                new LambdaQueryWrapper<WorkspaceMember>().eq(WorkspaceMember::getWorkspaceId, workspaceId));
+        if (memberCount >= maxMembers) {
+            throw new BusinessException(400, "工作区成员已满(" + maxMembers + ")");
+        }
+
         WorkspaceMember existing = memberMapper.selectOne(
                 new LambdaQueryWrapper<WorkspaceMember>()
                         .eq(WorkspaceMember::getWorkspaceId, workspaceId)
@@ -123,6 +151,19 @@ public class WorkspaceService {
 
     public WorkspaceFileDTO uploadFile(Long workspaceId, Long userId, String parentPath, MultipartFile file) throws Exception {
         checkMember(workspaceId, userId);
+
+        // ── File size limit ──
+        long maxFileSize = configService.getLong("workspace.max_file_size", 2147483648L);
+        if (file.getSize() > maxFileSize) {
+            throw new BusinessException(400, "文件超过最大限制(" + maxFileSize / 1073741824L + "GB)");
+        }
+
+        // ── Storage limit ──
+        Workspace ws = getWorkspaceEntity(workspaceId);
+        if (ws.getUsedSize() + file.getSize() > ws.getMaxSize()) {
+            throw new BusinessException(400, "工作区存储空间不足");
+        }
+
         String minioPath = "workspaces/" + workspaceId + "/" + UUID.randomUUID() + "/" + file.getOriginalFilename();
 
         minioService.uploadObject(minioPath, file.getInputStream(), file.getSize(), file.getContentType());
@@ -139,7 +180,6 @@ public class WorkspaceService {
         wf.setIsDirectory(false);
         fileMapper.insert(wf);
 
-        Workspace ws = getWorkspaceEntity(workspaceId);
         ws.setUsedSize(ws.getUsedSize() + file.getSize());
         workspaceMapper.updateById(ws);
 

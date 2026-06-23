@@ -6,9 +6,12 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using BondClient.Services;
 using BondClient.Views;
 using SkiaSharp;
 using Svg.Skia;
+
+using Avalonia.Media;
 
 namespace BondClient;
 
@@ -16,17 +19,33 @@ public class App : Application
 {
     private TrayIcon? _trayIcon;
     private FloatingBallWindow? _floatingBall;
+    private ApiClient? _apiClient;
+    private AuthService? _authService;
 
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        OverrideSukiColors();
+    }
+
+    private void OverrideSukiColors()
+    {
+        Resources["SukiPrimaryColor"] = Color.Parse("#FFD46A4C");
+        Resources["SukiPrimaryColor120"] = Color.Parse("#FFBF5A3E");
+        Resources["SukiPrimaryColor75"] = Color.Parse("#FFE0947E");
+        Resources["SukiPrimaryColor25"] = Color.Parse("#FFF5DDD5");
+        Resources["SukiAccentColor"] = Color.Parse("#FFD46A4C");
+        Resources["SukiAccentColor75"] = Color.Parse("#FFE0947E");
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _floatingBall = new FloatingBallWindow();
+            _apiClient = new ApiClient();
+            _authService = new AuthService(_apiClient);
+
+            _floatingBall = new FloatingBallWindow(_apiClient, _authService);
             desktop.MainWindow = _floatingBall;
 
             var svgStream = RenderSvgToPngStream(32);
@@ -92,12 +111,16 @@ public class App : Application
         var showItem = new NativeMenuItem("显示悬浮球");
         showItem.Click += (_, _) =>
         {
-            _floatingBall?.Show();
-            _floatingBall?.Activate();
+            try
+            {
+                _floatingBall?.Show();
+                _floatingBall?.Activate();
+            }
+            catch { }
         };
 
         var hideItem = new NativeMenuItem("隐藏悬浮球");
-        hideItem.Click += (_, _) => _floatingBall?.Hide();
+        hideItem.Click += (_, _) => { try { _floatingBall?.Hide(); } catch { } };
 
         var exitItem = new NativeMenuItem("退出");
         exitItem.Click += (_, _) => desktop.Shutdown();
@@ -130,14 +153,7 @@ public class App : Application
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                if (_floatingBall == null) return;
-                if (_floatingBall.IsVisible)
-                    _floatingBall.Hide();
-                else
-                {
-                    _floatingBall.Show();
-                    _floatingBall.Activate();
-                }
+                try { _floatingBall?.SafeToggleVisibility(); } catch { }
             });
         };
 

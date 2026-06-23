@@ -16,9 +16,13 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserMapper userMapper;
+    private final ConfigService configService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserDTO register(String username, String password, String nickname) {
+        if (!configService.getBoolean("user.allow_register", true)) {
+            throw new BusinessException(403, "暂不允许注册");
+        }
         User existing = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, username));
         if (existing != null) {

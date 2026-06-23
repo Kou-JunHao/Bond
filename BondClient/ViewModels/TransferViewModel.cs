@@ -40,6 +40,7 @@ public class TransferViewModel
         _discovery.DeviceFound += OnDeviceFound;
         _discovery.DeviceLost += OnDeviceLost;
         _transfer.IncomingRequest += OnIncomingRequest;
+        _transfer.ReceiveComplete += OnReceiveComplete;
         _transfer.TransferComplete += OnTransferComplete;
         _transfer.TransferFailed += OnTransferFailed;
         _transfer.ProgressUpdated += OnProgressUpdated;
@@ -116,9 +117,13 @@ public class TransferViewModel
 
     private void OnTransferComplete(string fileName)
     {
+        Dispatcher.UIThread.Post(() => TransferDone?.Invoke(fileName));
+    }
+
+    private void OnReceiveComplete(string fileName)
+    {
         Dispatcher.UIThread.Post(() =>
         {
-            TransferDone?.Invoke(fileName);
             RecentFiles.Insert(0, new RecentFile
             {
                 FileName = System.IO.Path.GetFileName(fileName),

@@ -16,6 +16,7 @@ public class User {
     private String nickname;
     private String avatarUrl;
     private Integer status;
+    private Boolean isAdmin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

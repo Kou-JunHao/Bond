@@ -10,10 +10,10 @@ spring:
         - id: bond-auth
           uri: lb://bond-auth
           predicates:
-            - Path=/api/auth/**,/api/devices/**
+            - Path=/api/auth/**,/api/devices/**,/api/friends/**
         - id: bond-transfer
           uri: lb://bond-transfer
           predicates:
-            - Path=/api/transfer/**,/api/workspaces/**
+            - Path=/api/transfer/**,/api/workspaces/**,/api/admin/**,/api/invite/**
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
