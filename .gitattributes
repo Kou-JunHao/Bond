@@ -1,0 +1,24 @@
+# Auto detect text files and set LF line endings
+* text=auto
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# SVG is text-based
+*.svg text
+
+# Lock files
+package-lock.json binary
+yarn.lock binary
+pnpm-lock.yaml binary
+
+# Shell scripts - always LF
+*.sh text eol=lf

@@ -1,0 +1,73 @@
+# ========== SECURITY & PRIVACY ==========
+# Prevent accidental upload of credentials, keys, and private data
+sshkey.key
+*.key
+*.pem
+*.pfx
+*.p12
+*.cert
+*.crt
+*.jks
+.env
+.env.*
+*.secret
+*.cred
+
+# ========== BUILD OUTPUT ==========
+# .NET
+bin/
+obj/
+BondClient/publish/
+publish/
+
+# Java / Maven
+**/target/
+*.jar
+*.war
+
+# Node / Frontend
+node_modules/
+admin-web/dist/
+admin-web/.vite/
+*.local
+
+# ========== IDE / EDITOR ==========
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ========== AI / LOCAL TOOLS ==========
+.kilo/
+.mimocode/
+.github/
+
+# ========== OS FILES ==========
+Thumbs.db
+.DS_Store
+Desktop.ini
+*.lnk
+
+# ========== LOGS & DATABASES ==========
+*.log
+*.sql
+*.sqlite
+*.sqlite3
+
+# ========== DEPLOY - PRODUCTION SECRETS & TOPOLOGY ==========
+deploy/
+
+# ========== DOCS WITH SENSITIVE INFO ==========
+SERVER_DEPLOY.md
+
+# ========== PACKAGE MANAGER LOCK FILES ==========
+package-lock.json
+yarn.lock
+bun.lock
+
+# ========== VISUAL STUDIO ==========
+*.suo
+*.user
+*.userosscache
+*.sln.docstates

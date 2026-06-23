@@ -1,0 +1,51 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Pre-commit hook that scans staged files for secrets and blocks the commit if found.
+.DESCRIPTION
+    This hook checks for common secret patterns (private keys, passwords, API keys, tokens)
+    in files being committed. If any are detected, the commit is aborted.
+#>
+
+$ErrorActionPreference = 'Stop'
+
+# Patterns that indicate secrets
+$secretPatterns = @(
+    '-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----'
+    # AWS Access Keys
+    '(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])'
+    # Generic password/secret/token assignments
+    '(password|passwd|pwd|secret|api[_-]?key|apikey)\s*[=:]\s*["\x27]?\S+["\x27]?'
+)
+
+# Get staged files (added, copied, modified, renamed)
+$staged = @(git diff --cached --name-only --diff-filter=ACMR --line-prefix='' 2>$null)
+if ($staged.Count -eq 0) {
+    exit 0
+}
+
+$hasIssue = $false
+foreach ($file in $staged) {
+    $fullPath = Join-Path -Path (Get-Location) -ChildPath $file
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        continue
+    }
+    try {
+        $content = Get-Content -LiteralPath $fullPath -Raw -ErrorAction Stop
+        if (-not $content) { continue }
+        foreach ($pattern in $secretPatterns) {
+            if ($content -match $pattern) {
+                Write-Host "SECURITY BLOCKED: Potential secret pattern detected in '$file'" -ForegroundColor Red
+                Write-Host "  Matched pattern: $pattern" -ForegroundColor Yellow
+                $hasIssue = $true
+            }
+        }
+    } catch {
+        # Binary or unreadable file, skip
+    }
+}
+
+if ($hasIssue) {
+    Write-Host "`nCommit REJECTED. Remove secrets from staged files or use 'git commit --no-verify' to bypass." -ForegroundColor Red
+    exit 1
+}
