@@ -1,4 +1,4 @@
-﻿<Application x:Class="BondClient.App"
+<Application x:Class="BondClient.App"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sukiUi="clr-namespace:SukiUI;assembly=SukiUI"
@@ -10,12 +10,30 @@
         </Style>
         <Style Selector="Path">
             <Setter Property="Fill" Value="Transparent" />
-            <Setter Property="Stroke" Value="{DynamicResource BondTertiary}" />
-            <Setter Property="StrokeThickness" Value="1.6" />
+            <Setter Property="Stroke" Value="{DynamicResource BondStroke}" />
+            <Setter Property="StrokeThickness" Value="1.5" />
             <Setter Property="StrokeLineCap" Value="Round" />
             <Setter Property="StrokeJoin" Value="Round" />
             <Setter Property="Stretch" Value="Uniform" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="1" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        </Style>
+        <!-- Outlined button: hover only tints border, no fill -->
+        <Style Selector="Button.outlined:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        </Style>
+        <Style Selector="Button.outlined:pressed">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+            <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        </Style>
+        <!-- Basic button: no visible hover change -->
+        <Style Selector="Button.basic:pointerover">
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </Application.Styles>
     <Application.Resources>
@@ -31,6 +49,7 @@
         <SolidColorBrush x:Key="BondSuccess" Color="#FF5D7358" />
         <SolidColorBrush x:Key="BondError" Color="#FFA34A42" />
         <SolidColorBrush x:Key="BondStroke" Color="#FF9A948B" />
+        <SolidColorBrush x:Key="BondPrimaryButtonText" Color="#FFFFFFFF" />
         <!-- Icons -->
         <StreamGeometry x:Key="Ico.Settings">M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051 2.34 2.34 0 0 0 9.67 4.136zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z</StreamGeometry>
         <StreamGeometry x:Key="Ico.ChevronLeft">M15 18l-6-6 6-6</StreamGeometry>
@@ -48,5 +67,8 @@
         <StreamGeometry x:Key="Ico.Info">M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 16v-4M12 8h.01</StreamGeometry>
         <StreamGeometry x:Key="Ico.Desktop">M20 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8 21h8M12 17v4</StreamGeometry>
         <StreamGeometry x:Key="Ico.Close">M18 6L6 18M6 6l12 12</StreamGeometry>
+        <StreamGeometry x:Key="Ico.Upload">M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12</StreamGeometry>
+        <StreamGeometry x:Key="Ico.Download">M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3</StreamGeometry>
+        <StreamGeometry x:Key="Ico.Trash">M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2</StreamGeometry>
     </Application.Resources>
 </Application>

@@ -1,73 +1,104 @@
-# ========== SECURITY & PRIVACY ==========
-# Prevent accidental upload of credentials, keys, and private data
-sshkey.key
-*.key
-*.pem
-*.pfx
-*.p12
-*.cert
-*.crt
-*.jks
-.env
-.env.*
-*.secret
-*.cred
+# ============================================
+# Bond Project .gitignore
+# ============================================
 
-# ========== BUILD OUTPUT ==========
-# .NET
+# ── Build outputs ──
 bin/
 obj/
-BondClient/publish/
 publish/
-
-# Java / Maven
+target/
+BondClient/publish/
 **/target/
+*.exe
+*.dll
+*.pdb
+*.class
 *.jar
 *.war
 
-# Node / Frontend
-node_modules/
-admin-web/dist/
-admin-web/.vite/
-*.local
-
-# ========== IDE / EDITOR ==========
+# ── IDE / Editor ──
+.vs/
 .vscode/
 .idea/
+*.suo
+*.user
+*.userosscache
+*.userprefs
+*.sln.docstates
 *.swp
 *.swo
 *~
 
-# ========== AI / LOCAL TOOLS ==========
+# ── AI / Local Tools ──
 .kilo/
 .mimocode/
+.claude/
 .github/
 
-# ========== OS FILES ==========
+# ── Security: keys & credentials ──
+*.key
+*.pem
+*.p12
+*.pfx
+*.cert
+*.crt
+*.jks
+*.keystore
+*.secret
+*.cred
+.env
+.env.*
+sshkey.key
+
+# ── Production secrets ──
+deploy/
+SERVER_DEPLOY.md
+PROJECT_REVIEW.md
+BondServer/API_DOCS.md
+
+# ── OS files ──
 Thumbs.db
-.DS_Store
 Desktop.ini
+.DS_Store
 *.lnk
 
-# ========== LOGS & DATABASES ==========
+# ── .NET / NuGet ──
+packages/
+*.nupkg
+
+# ── Java / Maven ──
+BondServer/.mvn/wrapper/*.jar
+BondServer/.mvn/maven/
+
+# ── Node.js ──
+node_modules/
+admin-web/dist/
+admin-web/.vite/
+admin-web/.pnpm-store/
+*.local
+*.tgz
+
+# ── Client runtime data ──
+BondClient/auth.json
+BondClient/config.json
+BondClient/position.txt
+BondClient/resume/
+BondClient/history.json
+BondClient/add_firewall_rules.bat
+
+# ── Logs & databases ──
 *.log
 *.sql
 *.sqlite
 *.sqlite3
 
-# ========== DEPLOY - PRODUCTION SECRETS & TOPOLOGY ==========
-deploy/
-
-# ========== DOCS WITH SENSITIVE INFO ==========
-SERVER_DEPLOY.md
-
-# ========== PACKAGE MANAGER LOCK FILES ==========
+# ── Package manager locks ──
 package-lock.json
 yarn.lock
 bun.lock
 
-# ========== VISUAL STUDIO ==========
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
+# ── Misc ──
+*.cache
+*.tmp
+*.bak
+*.orig

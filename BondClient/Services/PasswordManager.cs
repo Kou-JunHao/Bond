@@ -30,7 +30,7 @@ public class PasswordManager
             if (File.Exists(ConfigFile))
             {
                 var json = File.ReadAllText(ConfigFile);
-                var cfg = JsonSerializer.Deserialize<ConfigData>(json);
+                    var cfg = JsonSerializer.Deserialize(json, BondJsonContext.Default.ConfigData);
                 if (cfg != null)
                 {
                     DeviceId = cfg.DeviceId ?? "";
@@ -67,7 +67,7 @@ public class PasswordManager
                 TransferPort = TransferPort,
                 AutoApprove = AutoApprove,
                 DownloadPath = DownloadPath
-            });
+            }, BondJsonContext.Default.ConfigData);
             File.WriteAllText(ConfigFile, json);
         }
         catch (Exception ex)
@@ -133,7 +133,7 @@ public class PasswordManager
 
     public bool Verify(string input) => string.IsNullOrEmpty(Password) || Password == input;
 
-    private class ConfigData
+    internal class ConfigData
     {
         public string? DeviceId { get; set; }
         public string? DeviceName { get; set; }

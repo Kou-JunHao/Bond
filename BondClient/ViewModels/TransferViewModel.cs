@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -15,6 +15,10 @@ public class TransferViewModel
     private readonly PasswordManager _password;
     private readonly DiscoveryService _discovery;
     private readonly TransferService _transfer;
+    private readonly TransferRouter? _router;
+    private readonly CloudTransferService? _cloudTransfer;
+    private readonly ApiClient? _api;
+    private readonly TransferHistoryService? _history;
 
     public ObservableCollection<DeviceItem> Devices { get; } = [];
     public ObservableCollection<PendingRequest> PendingRequests { get; } = [];
@@ -31,20 +35,32 @@ public class TransferViewModel
 
     public string[]? QueuedFiles { get; set; }
 
-    public TransferViewModel(PasswordManager password, DiscoveryService discovery, TransferService transfer)
+    public TransferViewModel(PasswordManager password, DiscoveryService discovery, TransferService transfer,
+        TransferRouter? router = null, CloudTransferService? cloudTransfer = null, ApiClient? api = null,
+        TransferHistoryService? history = null)
     {
         _password = password;
         _discovery = discovery;
         _transfer = transfer;
+        _router = router;
+        _cloudTransfer = cloudTransfer;
+        _api = api;
+        _history = history;
 
         _discovery.DeviceFound += OnDeviceFound;
         _discovery.DeviceLost += OnDeviceLost;
         _transfer.IncomingRequest += OnIncomingRequest;
+        _transfer.ReceiveComplete += OnReceiveComplete;
         _transfer.TransferComplete += OnTransferComplete;
         _transfer.TransferFailed += OnTransferFailed;
         _transfer.ProgressUpdated += OnProgressUpdated;
         _transfer.TransferStarted += () => Dispatcher.UIThread.Post(() => TransferStarted?.Invoke());
         _transfer.TransferEnded += () => Dispatcher.UIThread.Post(() => TransferEnded?.Invoke());
+
+        if (_cloudTransfer != null)
+        {
+            _cloudTransfer.TransferComplete += OnCloudTransferComplete;
+        }
     }
 
     private void OnDeviceFound(DeviceInfo device)
@@ -119,12 +135,36 @@ public class TransferViewModel
         Dispatcher.UIThread.Post(() =>
         {
             TransferDone?.Invoke(fileName);
+            var fileInfo = new System.IO.FileInfo(fileName);
+            var fileSize = fileInfo.Exists ? fileInfo.Length : 0;
+            _history?.AddEntry(System.IO.Path.GetFileName(fileName), fileSize, TransferDirection.Sent, "LAN");
+        });
+    }
+
+    private void OnReceiveComplete(string fileName)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
             RecentFiles.Insert(0, new RecentFile
             {
                 FileName = System.IO.Path.GetFileName(fileName),
                 ReceivedAt = DateTime.Now
             });
-            while (RecentFiles.Count > 3) RecentFiles.RemoveAt(RecentFiles.Count - 1);
+            while (RecentFiles.Count > 50) RecentFiles.RemoveAt(RecentFiles.Count - 1);
+
+            var fileInfo = new System.IO.FileInfo(fileName);
+            var fileSize = fileInfo.Exists ? fileInfo.Length : 0;
+            _history?.AddEntry(System.IO.Path.GetFileName(fileName), fileSize, TransferDirection.Received, "LAN");
+        });
+    }
+
+    private void OnCloudTransferComplete(string fileName)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var fileInfo = new System.IO.FileInfo(fileName);
+            var fileSize = fileInfo.Exists ? fileInfo.Length : 0;
+            _history?.AddEntry(System.IO.Path.GetFileName(fileName), fileSize, TransferDirection.Sent, "云端");
         });
     }
 
@@ -164,29 +204,52 @@ public class TransferViewModel
             if (target.Device.HasPassword && !string.IsNullOrEmpty(target.EnteredPassword))
                 password = target.EnteredPassword;
 
-            StatusMessages.Add($"正在发送到 {target.Device.Name}...");
-            var response = await _transfer.SendFiles(target.Device, QueuedFiles, password, ct);
+            var mode = _router?.DetermineTransferMode(target.Device) ?? TransferMode.LanDirect;
 
-            switch (response)
+            if (mode == TransferMode.CloudRelay && _cloudTransfer != null && _api?.IsLoggedIn == true)
             {
-                case TransferResponse.Approved:
-                    StatusMessages.Add($"已发送到 {target.Device.Name}");
-                    break;
-                case TransferResponse.WrongPassword:
-                    var errPwd = $"发送到 {target.Device.Name} 失败: 密码错误";
-                    StatusMessages.Add(errPwd);
-                    TransferError?.Invoke(errPwd);
-                    break;
-                case TransferResponse.Rejected:
-                    var errRej = $"发送到 {target.Device.Name} 失败: 对方拒绝";
-                    StatusMessages.Add(errRej);
-                    TransferError?.Invoke(errRej);
-                    break;
-                case TransferResponse.NeedPassword:
-                    var errNeed = $"发送到 {target.Device.Name} 失败: 需要密码";
-                    StatusMessages.Add(errNeed);
-                    TransferError?.Invoke(errNeed);
-                    break;
+                StatusMessages.Add($"正在通过云端发送到 {target.Device.Name}...");
+                foreach (var file in QueuedFiles)
+                {
+                    var receiverId = long.TryParse(target.Device.Id, out var rid) ? rid : 0;
+                    if (receiverId == 0)
+                    {
+                        StatusMessages.Add($"发送到 {target.Device.Name} 失败: 无法获取设备ID");
+                        continue;
+                    }
+                    await _cloudTransfer.SendFileAsync(file, receiverId, null, null);
+                    var fileInfo = new System.IO.FileInfo(file);
+                    var fileSize = fileInfo.Exists ? fileInfo.Length : 0;
+                    _history?.AddEntry(System.IO.Path.GetFileName(file), fileSize, TransferDirection.Sent, target.Device.Name);
+                }
+                StatusMessages.Add($"已通过云端发送到 {target.Device.Name}");
+            }
+            else
+            {
+                StatusMessages.Add($"正在发送到 {target.Device.Name}...");
+                var response = await _transfer.SendFiles(target.Device, QueuedFiles, password, ct);
+
+                switch (response)
+                {
+                    case TransferResponse.Approved:
+                        StatusMessages.Add($"已发送到 {target.Device.Name}");
+                        break;
+                    case TransferResponse.WrongPassword:
+                        var errPwd = $"发送到 {target.Device.Name} 失败: 密码错误";
+                        StatusMessages.Add(errPwd);
+                        TransferError?.Invoke(errPwd);
+                        break;
+                    case TransferResponse.Rejected:
+                        var errRej = $"发送到 {target.Device.Name} 失败: 对方拒绝";
+                        StatusMessages.Add(errRej);
+                        TransferError?.Invoke(errRej);
+                        break;
+                    case TransferResponse.NeedPassword:
+                        var errNeed = $"发送到 {target.Device.Name} 失败: 需要密码";
+                        StatusMessages.Add(errNeed);
+                        TransferError?.Invoke(errNeed);
+                        break;
+                }
             }
         }
 

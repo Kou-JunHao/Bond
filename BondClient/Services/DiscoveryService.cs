@@ -54,7 +54,7 @@ public class DiscoveryService : IDisposable
         _udpBroadcast.Client.Bind(new IPEndPoint(IPAddress.Any, BroadcastPort));
         _udpBroadcast.EnableBroadcast = true;
 
-        // Multicast socket â€” separate socket for multicast receive
+        // Multicast socket â€?separate socket for multicast receive
         try
         {
             _udpMulticast = new UdpClient(BroadcastPort + 1);
@@ -62,7 +62,7 @@ public class DiscoveryService : IDisposable
         }
         catch
         {
-            // Multicast not supported on this network â€” fallback to broadcast only
+            // Multicast not supported on this network â€?fallback to broadcast only
             _udpMulticast?.Dispose();
             _udpMulticast = null;
         }
@@ -115,7 +115,7 @@ public class DiscoveryService : IDisposable
                 }
 
                 var json = Encoding.UTF8.GetString(result.Buffer);
-                var device = JsonSerializer.Deserialize<DeviceInfo>(json);
+                var device = JsonSerializer.Deserialize(json, BondJsonContext.Default.DeviceInfo);
                 if (device != null && device.Id != _password.DeviceId)
                 {
                     device.Ip = result.RemoteEndPoint.Address.ToString();
@@ -125,7 +125,7 @@ public class DiscoveryService : IDisposable
                     if (isNew)
                     {
                         DeviceFound?.Invoke(device);
-                        // New device found â€” immediately announce ourselves so they see us too
+                        // New device found â€?immediately announce ourselves so they see us too
                         _ = Task.Run(() => AnnounceOnce(ct));
                     }
                 }
@@ -163,7 +163,7 @@ public class DiscoveryService : IDisposable
             Port = _password.TransferPort,
             HasPassword = _password.HasPassword
         };
-        var json = JsonSerializer.Serialize(info);
+        var json = JsonSerializer.Serialize(info, BondJsonContext.Default.DeviceInfo);
         var data = Encoding.UTF8.GetBytes(json);
 
         // Refresh broadcast endpoints if stale
@@ -297,7 +297,7 @@ public class DiscoveryService : IDisposable
             Port = _password.TransferPort,
             HasPassword = _password.HasPassword
         };
-        var json = JsonSerializer.Serialize(info);
+        var json = JsonSerializer.Serialize(info, BondJsonContext.Default.DeviceInfo);
         var data = Encoding.UTF8.GetBytes(json);
 
         try { await _udpBroadcast!.SendAsync(data, data.Length, broadcastEndpoint); } catch { }
