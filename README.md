@@ -44,10 +44,10 @@ Bond/
 │   ├── bond-common/     # 公共模块（实体、DTO、工具类）
 │   ├── bond-auth/       # 认证服务（端口 8081）
 │   ├── bond-gateway/    # API 网关（端口 8080）
-│   └── bond-transfer/   # 传输服务（端口 8082）
+│   ├── bond-transfer/   # 传输服务（端口 8082）
+│   └── sql/             # 数据库初始化脚本
 ├── admin-web/           # Vue 3 管理后台
-├── deploy/              # Docker Compose + Nginx 配置
-└── sql/                 # 数据库初始化脚本
+└── deploy/              # 部署配置模板（需自行配置凭证）
 ```
 
 ## 快速开始
@@ -58,7 +58,7 @@ Bond/
 ```bash
 cd BondServer
 mvn package -DskipTests
-docker compose -f deploy/docker-compose.yml up -d
+# deploy/docker-compose.yml 需自行配置数据库/中间件凭证后使用
 ```
 
 **客户端：**
@@ -73,14 +73,6 @@ cd admin-web
 pnpm install
 pnpm dev
 ```
-
-### 生产部署
-
-详见 [SERVER_DEPLOY.md](SERVER_DEPLOY.md)
-
-## API 文档
-
-详见 [BondServer/API_DOCS.md](BondServer/API_DOCS.md)
 
 ## 许可证
 
