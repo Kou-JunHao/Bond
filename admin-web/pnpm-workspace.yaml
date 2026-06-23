@@ -1,3 +1,17 @@
 allowBuilds:
+  '@carbon/colors': set this to true or false
+  '@carbon/feature-flags': set this to true or false
+  '@carbon/grid': set this to true or false
+  '@carbon/icon-helpers': set this to true or false
+  '@carbon/icons-vue': set this to true or false
+  '@carbon/layout': set this to true or false
+  '@carbon/motion': set this to true or false
+  '@carbon/styles': set this to true or false
+  '@carbon/themes': set this to true or false
+  '@carbon/type': set this to true or false
+  '@carbon/vue': set this to true or false
+  '@parcel/watcher': set this to true or false
+  carbon-components: set this to true or false
+  core-js: set this to true or false
   esbuild: true
   vue-demi: true

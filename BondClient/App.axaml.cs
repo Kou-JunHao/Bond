@@ -42,7 +42,7 @@ public class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _apiClient = new ApiClient();
+            _apiClient = new ApiClient("https://bond-api.sg.skkk.uno");
             _authService = new AuthService(_apiClient);
 
             _floatingBall = new FloatingBallWindow(_apiClient, _authService);

@@ -21,7 +21,9 @@ public class AuthFilter implements GlobalFilter, Ordered {
             "/api/auth/login",
             "/api/auth/register",
             "/api/auth/refresh",
-            "/api/invite/"
+            "/api/auth/captcha",
+            "/api/invite/",
+            "/api/transfer/avatar/"
     );
 
     @Override

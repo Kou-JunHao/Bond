@@ -3,6 +3,7 @@ package com.bond.transfer.controller;
 import com.bond.common.dto.ChunkDTO;
 import com.bond.common.dto.Result;
 import com.bond.common.dto.TransferTaskDTO;
+import com.bond.transfer.service.MinioService;
 import com.bond.transfer.service.TransferService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +24,40 @@ import java.util.Map;
 public class TransferController {
 
     private final TransferService transferService;
+    private final MinioService minioService;
+
+    @PostMapping("/avatar")
+    public Result<Map<String, String>> uploadAvatar(@RequestHeader("X-User-Id") Long userId,
+                                                    @RequestParam MultipartFile file) throws Exception {
+        String ext = file.getOriginalFilename();
+        if (ext != null && ext.contains(".")) ext = ext.substring(ext.lastIndexOf("."));
+        else ext = ".png";
+        String objectName = "avatars/" + userId + ext;
+        minioService.uploadObject(objectName, file.getInputStream(), file.getSize(), file.getContentType());
+        String url = "/api/transfer/avatar/" + userId;
+        return Result.ok(Map.of("url", url));
+    }
+
+    @GetMapping("/avatar/{userId}")
+    public ResponseEntity<InputStreamResource> getAvatar(@PathVariable Long userId) throws Exception {
+        try {
+            String objectName = "avatars/" + userId + ".png";
+            InputStream is = minioService.downloadObject(objectName);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_PNG_VALUE)
+                    .body(new InputStreamResource(is));
+        } catch (Exception e) {
+            try {
+                String objectName = "avatars/" + userId + ".jpg";
+                InputStream is = minioService.downloadObject(objectName);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_JPEG_VALUE)
+                        .body(new InputStreamResource(is));
+            } catch (Exception e2) {
+                return ResponseEntity.notFound().build();
+            }
+        }
+    }
 
     @PostMapping("/tasks")
     public Result<TransferTaskDTO> createTask(@RequestHeader("X-User-Id") Long userId,
@@ -75,15 +111,19 @@ public class TransferController {
     }
 
     @GetMapping("/chunks/{taskId}/{index}")
-    public ResponseEntity<InputStreamResource> downloadChunk(@PathVariable Long taskId,
+    public ResponseEntity<InputStreamResource> downloadChunk(@RequestHeader("X-User-Id") Long userId,
+                                                              @PathVariable Long taskId,
                                                               @PathVariable int index) throws Exception {
+        transferService.checkTaskAccess(taskId, userId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                .body(new InputStreamResource(transferService.downloadFile(taskId)));
+                .body(new InputStreamResource(transferService.downloadChunk(taskId, index)));
     }
 
     @GetMapping("/chunks/{taskId}/status")
-    public Result<List<ChunkDTO>> chunkStatus(@PathVariable Long taskId) {
+    public Result<List<ChunkDTO>> chunkStatus(@RequestHeader("X-User-Id") Long userId,
+                                               @PathVariable Long taskId) {
+        transferService.checkTaskAccess(taskId, userId);
         return Result.ok(transferService.getChunkStatus(taskId));
     }
 

@@ -9,9 +9,9 @@ import java.util.Date;
 
 public class JwtUtils {
 
-    private static final String SECRET = "bond-cross-network-transfer-jwt-secret-key-2026";
-    private static final long ACCESS_TOKEN_EXPIRE = 24 * 60 * 60 * 1000L;
-    private static final long REFRESH_TOKEN_EXPIRE = 7 * 24 * 60 * 60 * 1000L;
+    private static final String SECRET = System.getenv().getOrDefault("JWT_SECRET", "bond-cross-network-transfer-jwt-secret-key-2026");
+    private static final long ACCESS_TOKEN_EXPIRE = Long.parseLong(System.getenv().getOrDefault("JWT_ACCESS_EXPIRE_HOURS", "24")) * 60 * 60 * 1000L;
+    private static final long REFRESH_TOKEN_EXPIRE = Long.parseLong(System.getenv().getOrDefault("JWT_REFRESH_EXPIRE_DAYS", "7")) * 24 * 60 * 60 * 1000L;
 
     private static SecretKey getKey() {
         return Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));

@@ -1,4 +1,8 @@
-# Build outputs
+# ============================================
+# Bond Project .gitignore
+# ============================================
+
+# ── Build outputs ──
 bin/
 obj/
 publish/
@@ -8,41 +12,69 @@ target/
 *.pdb
 *.user
 *.class
+*.jar
+*.war
 
-# IDE
+# ── IDE ──
 .vs/
 .vscode/
 .idea/
 *.suo
 *.userprefs
+*.swp
+*~
 
-# Kilo
+# ── AI Agent ──
 .kilo/
+.mimocode/
+.claude/
 
+# ── Sensitive files ──
 *.key
+*.pem
+*.p12
+*.keystore
+*.env
+.env.*
+sshkey.key
+deploy/
+SERVER_DEPLOY.md
+PROJECT_REVIEW.md
+BondServer/API_DOCS.md
 
-# OS
+# ── OS ──
 Thumbs.db
 Desktop.ini
 .DS_Store
 
-# NuGet
+# ── NuGet ──
 packages/
 *.nupkg
 
-# Java / Maven
+# ── Java / Maven ──
 BondServer/**/target/
+BondServer/.mvn/wrapper/*.jar
 BondServer/.mvn/maven/
-!BondServer/.mvn/wrapper/maven-wrapper.jar
 
-# Node.js
+# ── Node.js ──
 node_modules/
 admin-web/dist/
 admin-web/.pnpm-store/
 *.tgz
 
-# Auth token
+# ── Client runtime data ──
 BondClient/auth.json
+BondClient/config.json
+BondClient/position.txt
+BondClient/resume/
+BondClient/history.json
+BondClient/add_firewall_rules.bat
 
-# Logs
+# ── Logs ──
 *.log
+
+# ── Misc ──
+*.cache
+*.tmp
+*.bak
+*.orig

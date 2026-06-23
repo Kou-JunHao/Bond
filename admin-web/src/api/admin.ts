@@ -26,20 +26,47 @@ http.interceptors.response.use(
 export default http
 
 export const adminApi = {
-  login: (username: string, password: string) =>
-    http.post('/auth/login', { username, password }),
+  login: (username: string, password: string, captchaId?: string, captchaCode?: string) => {
+    const payload: any = { username, password }
+    if (captchaId) payload.captchaId = captchaId
+    if (captchaCode) payload.captchaCode = captchaCode
+    return http.post('/auth/login', payload)
+  },
+  getCaptcha: () =>
+    http.get('/auth/captcha'),
+  checkCaptcha: () =>
+    http.get('/auth/captcha/check'),
+  getMe: () =>
+    http.get('/auth/me'),
+  updateProfile: (nickname?: string, avatarUrl?: string) => {
+    const body: any = {}
+    if (nickname !== undefined) body.nickname = nickname
+    if (avatarUrl !== undefined) body.avatarUrl = avatarUrl
+    return http.put('/auth/profile', body)
+  },
+  uploadAvatar: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return http.post('/transfer/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   dashboard: () =>
     http.get('/admin/dashboard'),
   getConfig: () =>
     http.get('/admin/config'),
+  getConfigByKey: (key: string) =>
+    http.get(`/admin/config/${key}`),
   updateConfig: (key: string, value: string) =>
     http.put(`/admin/config/${key}`, { value }),
+  batchUpdateConfig: (configs: Record<string, string>) =>
+    http.put('/admin/config', configs),
   resetConfig: () =>
     http.post('/admin/config/reset'),
   getUsers: (params: any) =>
     http.get('/admin/users', { params }),
   getUserDetail: (id: number) =>
     http.get(`/admin/users/${id}`),
+  getUserStats: () =>
+    http.get('/admin/users/stats'),
   setUserStatus: (id: number, status: number) =>
     http.put(`/admin/users/${id}/status`, { status }),
   setAdmin: (id: number, isAdmin: boolean) =>
@@ -48,6 +75,10 @@ export const adminApi = {
     http.delete(`/admin/users/${id}`),
   getTransfers: (params: any) =>
     http.get('/admin/transfers', { params }),
+  getTransferStats: () =>
+    http.get('/admin/transfers/stats'),
+  getTransferTrend: (days: number = 7) =>
+    http.get('/admin/dashboard/transfer-trend', { params: { days } }),
   deleteTransfer: (id: number) =>
     http.delete(`/admin/transfers/${id}`),
   cleanupTransfers: () =>

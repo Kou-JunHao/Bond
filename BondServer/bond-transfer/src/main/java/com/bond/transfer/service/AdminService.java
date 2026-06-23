@@ -21,10 +21,12 @@ public class AdminService {
     private final UserMapper userMapper;
     private final DeviceMapper deviceMapper;
     private final TransferTaskMapper transferTaskMapper;
+    private final TransferChunkMapper transferChunkMapper;
     private final WorkspaceMapper workspaceMapper;
     private final WorkspaceMemberMapper workspaceMemberMapper;
     private final WorkspaceFileMapper workspaceFileMapper;
     private final ConfigService configService;
+    private final MinioService minioService;
 
     public DashboardDTO getDashboard() {
         DashboardDTO dto = new DashboardDTO();
@@ -39,8 +41,13 @@ public class AdminService {
         List<WorkspaceFile> files = workspaceFileMapper.selectList(null);
         dto.setTotalStorageUsed(files.stream().mapToLong(WorkspaceFile::getFileSize).sum());
 
+        dto.setTransferTrend(getTransferTrend(7));
+        return dto;
+    }
+
+    public Map<String, Long> getTransferTrend(int days) {
         Map<String, Long> trend = new HashMap<>();
-        for (int i = 6; i >= 0; i--) {
+        for (int i = days - 1; i >= 0; i--) {
             LocalDateTime dayStart = LocalDateTime.now().minusDays(i).toLocalDate().atStartOfDay();
             LocalDateTime dayEnd = dayStart.plusDays(1);
             Long count = transferTaskMapper.selectCount(
@@ -49,8 +56,7 @@ public class AdminService {
                             .lt(TransferTask::getCreatedAt, dayEnd));
             trend.put(dayStart.toLocalDate().toString(), count);
         }
-        dto.setTransferTrend(trend);
-        return dto;
+        return trend;
     }
 
     public List<AdminUserDTO> listUsers(int page, int size, String keyword) {
@@ -96,6 +102,15 @@ public class AdminService {
     }
 
     public void deleteUser(Long userId) {
+        List<TransferTask> tasks = transferTaskMapper.selectList(
+                new LambdaQueryWrapper<TransferTask>()
+                        .and(w -> w.eq(TransferTask::getSenderId, userId).or().eq(TransferTask::getReceiverId, userId)));
+        for (TransferTask task : tasks) {
+            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, task.getId()));
+        }
+        transferTaskMapper.delete(new LambdaQueryWrapper<TransferTask>()
+                .and(w -> w.eq(TransferTask::getSenderId, userId).or().eq(TransferTask::getReceiverId, userId)));
         userMapper.deleteById(userId);
     }
 
@@ -122,10 +137,23 @@ public class AdminService {
     }
 
     public void deleteTransfer(Long taskId) {
-        transferTaskMapper.deleteById(taskId);
+        TransferTask task = transferTaskMapper.selectById(taskId);
+        if (task != null) {
+            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, taskId));
+            transferTaskMapper.deleteById(taskId);
+        }
     }
 
     public int cleanupExpired() {
+        List<TransferTask> expired = transferTaskMapper.selectList(
+                new LambdaQueryWrapper<TransferTask>()
+                        .lt(TransferTask::getExpiresAt, LocalDateTime.now())
+                        .ne(TransferTask::getStatus, 2));
+        for (TransferTask task : expired) {
+            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, task.getId()));
+        }
         return transferTaskMapper.delete(
                 new LambdaQueryWrapper<TransferTask>()
                         .lt(TransferTask::getExpiresAt, LocalDateTime.now())
@@ -152,6 +180,11 @@ public class AdminService {
     }
 
     public void deleteWorkspace(Long workspaceId) {
+        var files = workspaceFileMapper.selectList(
+                new LambdaQueryWrapper<WorkspaceFile>().eq(WorkspaceFile::getWorkspaceId, workspaceId));
+        for (var file : files) {
+            try { minioService.deleteObject(file.getMinioPath()); } catch (Exception ignored) {}
+        }
         workspaceFileMapper.delete(
                 new LambdaQueryWrapper<WorkspaceFile>().eq(WorkspaceFile::getWorkspaceId, workspaceId));
         workspaceMemberMapper.delete(

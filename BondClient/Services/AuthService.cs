@@ -39,11 +39,19 @@ public class AuthService
         }
     }
 
-    public async Task<(bool success, string? error)> LoginAsync(string username, string password)
+    public async Task<(bool success, string? error)> LoginAsync(string username, string password, string? captchaId = null, string? captchaCode = null)
     {
         try
         {
-            var json = $$"""{"username":"{{username}}","password":"{{password}}"}""";
+            string json;
+            if (!string.IsNullOrEmpty(captchaId) && !string.IsNullOrEmpty(captchaCode))
+            {
+                json = $$"""{"username":"{{username}}","password":"{{password}}","captchaId":"{{captchaId}}","captchaCode":"{{captchaCode}}"}""";
+            }
+            else
+            {
+                json = $$"""{"username":"{{username}}","password":"{{password}}"}""";
+            }
             var result = await _api.PostRawJsonAsync("/api/auth/login", json, BondJsonContext.Default.ApiResultUser);
             if (result?.IsSuccess == true && result.Data?.AccessToken != null)
             {

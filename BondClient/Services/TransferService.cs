@@ -147,6 +147,14 @@ public class TransferService : IDisposable
             return;
         }
 
+        if (_password.AutoApprove)
+        {
+            await WriteResponse(stream, TransferResponse.Approved);
+            ConfigureSocketForBulk(client);
+            await ReceiveFiles(stream, request.Files, request.TotalSize, ct);
+            return;
+        }
+
         var tcs = new TaskCompletionSource<TransferResponse>();
         _pendingResponses[request.FromId] = tcs;
         IncomingRequest?.Invoke(request, client);

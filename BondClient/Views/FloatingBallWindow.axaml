@@ -1,4 +1,4 @@
-﻿<Window x:Class="BondClient.Views.FloatingBallWindow"
+<Window x:Class="BondClient.Views.FloatingBallWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:BondClient.ViewModels"
@@ -91,8 +91,41 @@
                                                     <TextBlock Text="&#x5BC6;&#x7801;" FontSize="12"
                                                                Foreground="{DynamicResource BondSecondary}" />
                                                     <TextBox Name="LoginPassword" PlaceholderText="&#x8F93;&#x5165;&#x5BC6;&#x7801;"
-                                                             PasswordChar="&#x25CF;" />
+                                                             PasswordChar="&#x25CF;" KeyDown="OnLoginKeyDown" />
                                                 </StackPanel>
+
+                                                <!-- Captcha -->
+                                                <Panel Name="LoginCaptchaPanel" IsVisible="False">
+                                                    <StackPanel Spacing="6">
+                                                        <TextBlock Text="验证码" FontSize="12"
+                                                                   Foreground="{DynamicResource BondSecondary}" />
+                                                        <DockPanel LastChildFill="True">
+                                                            <Button Name="LoginCaptchaRefreshBtn" Classes="Basic"
+                                                                    DockPanel.Dock="Right"
+                                                                    Click="OnRefreshCaptcha" Padding="6"
+                                                                    MinWidth="36" MinHeight="36"
+                                                                    VerticalAlignment="Bottom"
+                                                                    ToolTip.Tip="刷新验证码">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.ArrowRotate}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                            </Button>
+                                                            <Image Name="LoginCaptchaImage" Width="100" Height="36"
+                                                                   DockPanel.Dock="Right"
+                                                                   Margin="0,0,8,0"
+                                                                   Cursor="Hand"
+                                                                   PointerPressed="OnRefreshCaptcha"
+                                                                   ToolTip.Tip="点击刷新"
+                                                                   Stretch="Uniform" />
+                                                            <TextBox Name="LoginCaptchaInput"
+                                                                     PlaceholderText="请输入验证码"
+                                                                     FontSize="13" Height="36" CornerRadius="8"
+                                                                     KeyDown="OnLoginKeyDown"
+                                                                     Margin="0,0,8,0" />
+                                                        </DockPanel>
+                                                    </StackPanel>
+                                                </Panel>
+
                                                 <TextBlock Name="LoginError" FontSize="11"
                                                            Foreground="{DynamicResource BondError}"
                                                            TextWrapping="Wrap" MinHeight="16" />
@@ -141,37 +174,79 @@
 
                                             <!-- Account Card (logged in) -->
                                             <suki:GlassCard Name="DashAccountCard" IsOpaque="True" IsVisible="False">
-                                                <DockPanel LastChildFill="True">
-                                                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10"
-                                                                VerticalAlignment="Center">
-                                                        <Border Width="36" Height="36" CornerRadius="18"
-                                                                Background="{DynamicResource BondSurface}"
-                                                                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
-                                                            <Path Width="18" Height="18"
-                                                                  Data="{StaticResource Ico.Person}"
-                                                                  Stroke="{DynamicResource BondStroke}" />
-                                                        </Border>
-                                                        <StackPanel Spacing="1" VerticalAlignment="Center">
-                                                            <TextBlock Name="DashAccountName" FontSize="13" FontWeight="600"
-                                                                       Foreground="{DynamicResource BondPrimary}" />
-                                                            <TextBlock Name="DashAccountStatus" FontSize="11"
-                                                                       Foreground="{DynamicResource BondTertiary}" />
+                                                <StackPanel Spacing="8">
+                                                    <DockPanel LastChildFill="True">
+                                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10"
+                                                                    VerticalAlignment="Center">
+                                                            <Border Width="36" Height="36" CornerRadius="18"
+                                                                    Background="{DynamicResource BondSurface}"
+                                                                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                                                                <Path Width="18" Height="18"
+                                                                      Data="{StaticResource Ico.Person}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                            </Border>
+                                                            <StackPanel Spacing="1" VerticalAlignment="Center">
+                                                                <TextBlock Name="DashAccountName" FontSize="13" FontWeight="600"
+                                                                           Foreground="{DynamicResource BondPrimary}" />
+                                                                <TextBlock Name="DashAccountStatus" FontSize="11"
+                                                                           Foreground="{DynamicResource BondTertiary}" />
+                                                            </StackPanel>
                                                         </StackPanel>
-                                                    </StackPanel>
-                                                    <Button Name="DashWorkspaceBtn" Classes="Outlined"
-                                                            DockPanel.Dock="Right" VerticalAlignment="Center"
-                                                            Click="OnDashOpenWorkspace" Padding="8,4">
-                                                        <Grid ColumnDefinitions="Auto,Auto">
-                                                            <Path Grid.Column="0" Width="14" Height="14"
-                                                                  Data="{StaticResource Ico.Folder}"
+                                                        <Button Name="DashProfileBtn" Classes="Basic"
+                                                                DockPanel.Dock="Right" VerticalAlignment="Center"
+                                                                Click="OnDashOpenProfile" Padding="6">
+                                                            <Path Width="14" Height="14"
+                                                                  Data="{StaticResource Ico.Settings}"
                                                                   Stroke="{DynamicResource BondStroke}" />
-                                                            <TextBlock Grid.Column="1" Text="&#x5DE5;&#x4F5C;&#x533A;"
-                                                                       FontSize="11"
-                                                                       Foreground="{DynamicResource BondSecondary}"
-                                                                       VerticalAlignment="Center" Margin="4,0,0,0" />
-                                                        </Grid>
-                                                    </Button>
-                                                </DockPanel>
+                                                        </Button>
+                                                    </DockPanel>
+                                                    <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto" Margin="0,4,0,0">
+                                                        <Button Grid.Column="0" Classes="Outlined"
+                                                                Click="OnDashOpenWorkspace" Padding="4,6"
+                                                                HorizontalAlignment="Stretch">
+                                                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Folder}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="工作区" FontSize="10"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Grid.Column="1" Classes="Outlined"
+                                                                Click="OnDashOpenFriend" Padding="4,6"
+                                                                HorizontalAlignment="Stretch" Margin="4,0">
+                                                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Person}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="好友" FontSize="10"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Grid.Column="2" Classes="Outlined"
+                                                                Click="OnDashOpenCloudInbox" Padding="4,6"
+                                                                HorizontalAlignment="Stretch" Margin="0,0,4,0">
+                                                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.ArrowRotate}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="收件箱" FontSize="10"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Grid.Column="3" Classes="Outlined"
+                                                                Click="OnDashOpenTransferHistory" Padding="4,6"
+                                                                HorizontalAlignment="Stretch">
+                                                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.ChevronRight}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="历史" FontSize="10"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </Grid>
+                                                </StackPanel>
                                             </suki:GlassCard>
 
                                             <!-- Login Prompt Card (not logged in) -->
@@ -1082,31 +1157,311 @@
                                                                    Foreground="{DynamicResource BondSecondary}"
                                                                    VerticalAlignment="Center"
                                                                    TextTrimming="CharacterEllipsis" />
+                                                        <Button Name="WsUploadBtn" Classes="Outlined" DockPanel.Dock="Right"
+                                                                Click="OnWsUpload" Padding="8,4"
+                                                                MinWidth="28" MinHeight="28">
+                                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Upload}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="上传" FontSize="11"
+                                                                           Foreground="{DynamicResource BondSecondary}"
+                                                                           VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
                                                     </DockPanel>
                                                     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                                                        <ItemsControl Name="WsFileList">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate x:DataType="x:Object">
-                                                                    <suki:GlassCard Margin="0,0,0,4" Padding="10" IsOpaque="True"
-                                                                                    Cursor="Hand">
-                                                                        <DockPanel LastChildFill="True">
-                                                                            <Path DockPanel.Dock="Left" Width="16" Height="16"
-                                                                                  Stroke="{DynamicResource BondStroke}"
-                                                                                  Data="{StaticResource Ico.Document}"
-                                                                                  Margin="0,0,8,0" />
-                                                                            <TextBlock FontSize="12"
-                                                                                       Foreground="{DynamicResource BondPrimary}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       TextTrimming="CharacterEllipsis" />
-                                                                        </DockPanel>
-                                                                    </suki:GlassCard>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                        <StackPanel Name="WsFileList" Spacing="4" />
                                                     </ScrollViewer>
                                                 </DockPanel>
                                             </Panel>
                                         </Panel>
+                                    </DockPanel>
+                                </Panel>
+
+                                <!-- ===== Friends ===== -->
+                                <Panel Name="FriendPanel" IsVisible="False">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" Height="44" Margin="0,0,0,8">
+                                            <Button Classes="Basic" DockPanel.Dock="Left"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnBackToDashboard"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <TextBlock Text="&#x597D;&#x53CB;" FontSize="15" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                        </DockPanel>
+
+                                        <Panel>
+                                            <!-- Friend List View -->
+                                            <Panel Name="FriendListView" IsVisible="True">
+                                                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                                    <StackPanel Spacing="8">
+                                                        <!-- Search -->
+                                                        <suki:GlassCard IsOpaque="True">
+                                                            <StackPanel Spacing="8">
+                                                                <TextBlock Text="&#x641C;&#x7D22;&#x7528;&#x6237;" FontSize="12"
+                                                                           FontWeight="600"
+                                                                           Foreground="{DynamicResource BondPrimary}" />
+                                                                <DockPanel LastChildFill="True">
+                                                                    <TextBox Name="FriendSearchBox" PlaceholderText="&#x8F93;&#x5165;&#x7528;&#x6237;&#x540D;/&#x6635;&#x79F0;"
+                                                                             FontSize="13" Height="36" CornerRadius="8"
+                                                                             KeyDown="OnFriendSearchKeyDown" />
+                                                                </DockPanel>
+                                                                <StackPanel Name="FriendSearchResults" Spacing="4" IsVisible="False" />
+                                                            </StackPanel>
+                                                        </suki:GlassCard>
+
+                                                        <!-- Pending Requests -->
+                                                        <suki:GlassCard IsOpaque="True">
+                                                            <StackPanel Spacing="8">
+                                                                <DockPanel LastChildFill="True">
+                                                                    <TextBlock Text="&#x5F85;&#x5904;&#x7406;&#x8BF7;&#x6C42;" FontSize="12"
+                                                                               FontWeight="600"
+                                                                               Foreground="{DynamicResource BondPrimary}"
+                                                                               DockPanel.Dock="Left" />
+                                                                    <TextBlock Name="FriendRequestCount" Text="" FontSize="11"
+                                                                               Foreground="{DynamicResource BondDisabled}"
+                                                                               DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                                                                </DockPanel>
+                                                                <StackPanel Name="FriendRequestList" Spacing="4" />
+                                                                <TextBlock Name="FriendRequestEmpty"
+                                                                           Text="&#x6682;&#x65E0;&#x8BF7;&#x6C42;"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource BondDisabled}"
+                                                                           HorizontalAlignment="Center"
+                                                                           IsVisible="True" />
+                                                            </StackPanel>
+                                                        </suki:GlassCard>
+
+                                                        <!-- Friend List -->
+                                                        <suki:GlassCard IsOpaque="True">
+                                                            <StackPanel Spacing="8">
+                                                                <DockPanel LastChildFill="True">
+                                                                    <TextBlock Text="&#x597D;&#x53CB;&#x5217;&#x8868;" FontSize="12"
+                                                                               FontWeight="600"
+                                                                               Foreground="{DynamicResource BondPrimary}"
+                                                                               DockPanel.Dock="Left" />
+                                                                    <TextBlock Name="FriendCount" Text="" FontSize="11"
+                                                                               Foreground="{DynamicResource BondDisabled}"
+                                                                               DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                                                                </DockPanel>
+                                                                <StackPanel Name="FriendListPanel" Spacing="4" />
+                                                                <TextBlock Name="FriendListEmpty"
+                                                                           Text="&#x8FD8;&#x6CA1;&#x6709;&#x597D;&#x53CB;&#xFF0C;&#x641C;&#x7D22;&#x6DFB;&#x52A0;&#x5427;"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource BondDisabled}"
+                                                                           HorizontalAlignment="Center"
+                                                                           IsVisible="True" />
+                                                            </StackPanel>
+                                                        </suki:GlassCard>
+                                                    </StackPanel>
+                                                </ScrollViewer>
+                                            </Panel>
+                                        </Panel>
+                                    </DockPanel>
+                                </Panel>
+
+                                <!-- ===== Profile ===== -->
+                                <Panel Name="ProfilePanel" IsVisible="False">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" Height="44" Margin="0,0,0,8">
+                                            <Button Classes="Basic" DockPanel.Dock="Left"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnBackToDashboard"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <TextBlock Text="个人中心" FontSize="15" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                        </DockPanel>
+
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel Spacing="12">
+                                                <!-- Account Info -->
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <StackPanel Spacing="8">
+                                                        <DockPanel LastChildFill="True">
+                                                            <Path DockPanel.Dock="Left" Width="16" Height="16"
+                                                                  Data="{StaticResource Ico.Person}"
+                                                                  Stroke="{DynamicResource BondStroke}" />
+                                                            <TextBlock DockPanel.Dock="Left" Text="账号信息"
+                                                                       FontSize="12" FontWeight="600"
+                                                                       Foreground="{DynamicResource BondPrimary}"
+                                                                       Margin="8,0,0,0" />
+                                                        </DockPanel>
+                                                        <StackPanel Spacing="4">
+                                                            <DockPanel LastChildFill="True">
+                                                                <TextBlock DockPanel.Dock="Left" Text="用户名"
+                                                                           FontSize="11" Foreground="{DynamicResource BondDisabled}" />
+                                                                <TextBlock DockPanel.Dock="Right" Name="ProfileUsername"
+                                                                           FontSize="12" HorizontalAlignment="Right" />
+                                                            </DockPanel>
+                                                            <DockPanel LastChildFill="True">
+                                                                <TextBlock DockPanel.Dock="Left" Text="昵称"
+                                                                           FontSize="11" Foreground="{DynamicResource BondDisabled}" />
+                                                                <TextBlock DockPanel.Dock="Right" Name="ProfileNickname"
+                                                                           FontSize="12" HorizontalAlignment="Right" />
+                                                            </DockPanel>
+                                                            <DockPanel LastChildFill="True">
+                                                                <TextBlock DockPanel.Dock="Left" Text="用户ID"
+                                                                           FontSize="11" Foreground="{DynamicResource BondDisabled}" />
+                                                                <TextBlock DockPanel.Dock="Right" Name="ProfileUserId"
+                                                                           FontSize="11" Foreground="{DynamicResource BondDisabled}"
+                                                                           HorizontalAlignment="Right" />
+                                                            </DockPanel>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </suki:GlassCard>
+
+                                                <!-- Quick Actions -->
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Text="快捷操作" FontSize="12" FontWeight="600"
+                                                                   Foreground="{DynamicResource BondPrimary}" />
+                                                        <Button Name="ProfileOpenDownloadBtn" Classes="Outlined"
+                                                                Click="OnOpenDownloadFolder" Padding="10,6"
+                                                                HorizontalAlignment="Stretch"
+                                                                HorizontalContentAlignment="Left">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Folder}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="打开下载目录" FontSize="12" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                        <Button Name="ProfileDeviceBtn" Classes="Outlined"
+                                                                Click="OnOpenDeviceManager" Padding="10,6"
+                                                                HorizontalAlignment="Stretch"
+                                                                HorizontalContentAlignment="Left">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Path Width="14" Height="14"
+                                                                      Data="{StaticResource Ico.Desktop}"
+                                                                      Stroke="{DynamicResource BondStroke}" />
+                                                                <TextBlock Text="设备管理" FontSize="12" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </suki:GlassCard>
+
+                                                <!-- Device Manager -->
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <StackPanel Spacing="8">
+                                                        <DockPanel LastChildFill="True">
+                                                            <TextBlock Text="已注册设备" FontSize="12" FontWeight="600"
+                                                                       Foreground="{DynamicResource BondPrimary}"
+                                                                       DockPanel.Dock="Left" />
+                                                            <Button Name="RegisterDeviceBtn" Classes="Outlined"
+                                                                    Click="OnRegisterCurrentDevice"
+                                                                    DockPanel.Dock="Right" Padding="8,4"
+                                                                    FontSize="11">
+                                                                <TextBlock Text="注册当前设备" FontSize="11"
+                                                                           Foreground="{DynamicResource BondSecondary}" />
+                                                            </Button>
+                                                        </DockPanel>
+                                                        <StackPanel Name="DeviceManagerList" Spacing="4" />
+                                                        <TextBlock Name="DeviceManagerEmpty"
+                                                                   Text="暂无已注册设备"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource BondDisabled}"
+                                                                   HorizontalAlignment="Center"
+                                                                   IsVisible="True" />
+                                                    </StackPanel>
+                                                </suki:GlassCard>
+
+                                                <!-- Logout -->
+                                                <suki:GlassCard IsOpaque="True">
+                                                    <Button Name="ProfileLogoutBtn" Classes="Flat"
+                                                            Click="OnLogout" Padding="10,6"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Center"
+                                                            Background="{DynamicResource BondError}">
+                                                        <TextBlock Text="退出登录" FontSize="12" Foreground="White" />
+                                                    </Button>
+                                                </suki:GlassCard>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Panel>
+
+                                <!-- ===== Cloud Inbox ===== -->
+                                <Panel Name="CloudInboxPanel" IsVisible="False">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" Height="44" Margin="0,0,0,8">
+                                            <Button Classes="Basic" DockPanel.Dock="Left"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnBackToDashboard"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <TextBlock Text="云传输收件箱" FontSize="15" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                            <Button Classes="Basic" DockPanel.Dock="Right"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnRefreshCloudInbox"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="14" Height="14"
+                                                      Data="{StaticResource Ico.ArrowRotate}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                        </DockPanel>
+
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel Spacing="8">
+                                                <StackPanel Name="CloudInboxList" Spacing="6" />
+                                                <TextBlock Name="CloudInboxEmpty"
+                                                           Text="暂无待接收的云传输"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource BondDisabled}"
+                                                           HorizontalAlignment="Center"
+                                                           IsVisible="True" />
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Panel>
+
+                                <!-- ===== Transfer History ===== -->
+                                <Panel Name="TransferHistoryPanel" IsVisible="False">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" Height="44" Margin="0,0,0,8">
+                                            <Button Classes="Basic" DockPanel.Dock="Left"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnBackToDashboard"
+                                                    Padding="8" MinWidth="36" MinHeight="36">
+                                                <Path Width="16" Height="16"
+                                                      Data="{StaticResource Ico.ChevronLeft}"
+                                                      Stroke="{DynamicResource BondStroke}" />
+                                            </Button>
+                                            <TextBlock Text="传输历史" FontSize="15" FontWeight="600"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                        </DockPanel>
+
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <StackPanel Spacing="8">
+                                                <StackPanel Name="TransferHistoryList" Spacing="6" />
+                                                <TextBlock Name="TransferHistoryEmpty"
+                                                           Text="暂无传输记录"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource BondDisabled}"
+                                                           HorizontalAlignment="Center"
+                                                           IsVisible="True" />
+                                            </StackPanel>
+                                        </ScrollViewer>
                                     </DockPanel>
                                 </Panel>
 

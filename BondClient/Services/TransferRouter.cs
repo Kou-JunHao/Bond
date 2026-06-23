@@ -6,16 +6,32 @@ public enum TransferMode
 {
     LanDirect,
     CloudRelay,
+    NatDirect,
     OfflineRelay
 }
 
 public class TransferRouter
 {
     private readonly DiscoveryService _discovery;
+    private readonly ApiClient? _api;
+    private string? _publicIP;
+    private bool _natChecked;
 
-    public TransferRouter(DiscoveryService discovery)
+    public TransferRouter(DiscoveryService discovery, ApiClient? api = null)
     {
         _discovery = discovery;
+        _api = api;
+    }
+
+    public async Task<TransferMode> DetermineTransferModeAsync(DeviceInfo target)
+    {
+        if (!string.IsNullOrEmpty(target.Ip) && IsSameSubnet(target.Ip))
+            return TransferMode.LanDirect;
+
+        if (_api?.IsLoggedIn == true)
+            return TransferMode.CloudRelay;
+
+        return TransferMode.OfflineRelay;
     }
 
     public TransferMode DetermineTransferMode(DeviceInfo target)
@@ -24,6 +40,16 @@ public class TransferRouter
             return TransferMode.LanDirect;
 
         return TransferMode.CloudRelay;
+    }
+
+    public async Task<string?> GetPublicIPAsync(string stunServer = "stun.l.google.com:19302")
+    {
+        if (_natChecked) return _publicIP;
+        _natChecked = true;
+
+        var result = await StunClient.GetPublicEndpointAsync(stunServer);
+        _publicIP = result?.PublicIP;
+        return _publicIP;
     }
 
     private bool IsSameSubnet(string targetIp)

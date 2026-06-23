@@ -193,6 +193,40 @@ public class TransferService {
         return minioService.downloadObject(task.getMinioPath());
     }
 
+    public InputStream downloadChunk(Long taskId, int chunkIndex) throws Exception {
+        TransferTask task = getTaskEntity(taskId);
+        int chunkSize = task.getChunkSize();
+        long offset = (long) chunkIndex * chunkSize;
+        long length = Math.min(chunkSize, task.getFileSize() - offset);
+        if (offset >= task.getFileSize()) {
+            throw new BusinessException(400, "分片索引超出范围");
+        }
+        InputStream fullStream = minioService.downloadObject(task.getMinioPath());
+        if (fullStream instanceof java.io.FileInputStream fis) {
+            java.nio.channels.FileChannel channel = fis.getChannel();
+            channel.position(offset);
+            byte[] buf = new byte[(int) length];
+            java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(buf);
+            int totalRead = 0;
+            while (totalRead < length) {
+                int read = channel.read(bb);
+                if (read == -1) break;
+                totalRead += read;
+            }
+            return new java.io.ByteArrayInputStream(buf, 0, totalRead);
+        }
+        fullStream.skipNBytes(offset);
+        byte[] buf = new byte[(int) length];
+        int totalRead = 0;
+        while (totalRead < length) {
+            int read = fullStream.read(buf, totalRead, (int) length - totalRead);
+            if (read == -1) break;
+            totalRead += read;
+        }
+        fullStream.close();
+        return new java.io.ByteArrayInputStream(buf, 0, totalRead);
+    }
+
     public void deleteTask(Long taskId, Long userId) {
         TransferTask task = getTaskEntity(taskId);
         checkOwnership(task, userId);
@@ -217,6 +251,11 @@ public class TransferService {
         if (!task.getSenderId().equals(userId) && !task.getReceiverId().equals(userId)) {
             throw new BusinessException(403, "无权操作此传输任务");
         }
+    }
+
+    public void checkTaskAccess(Long taskId, Long userId) {
+        TransferTask task = getTaskEntity(taskId);
+        checkOwnership(task, userId);
     }
 
     private TransferTaskDTO toDTO(TransferTask task) {

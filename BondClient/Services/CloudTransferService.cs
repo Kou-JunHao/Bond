@@ -144,6 +144,120 @@ public class CloudTransferService : IDisposable
         }
     }
 
+    public async Task DownloadFileAsync(long taskId, string outputDir)
+    {
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            TransferStarted?.Invoke();
+
+            var taskResult = await _api.GetJsonAsync(
+                $"/api/transfer/tasks/{taskId}",
+                BondJsonContext.Default.ApiResultTransferTask);
+
+            if (taskResult?.IsSuccess != true || taskResult.Data == null)
+            {
+                TransferFailed?.Invoke(taskResult?.Message ?? "Get task failed");
+                return;
+            }
+
+            var task = taskResult.Data;
+            if (task.Status != 2)
+            {
+                TransferFailed?.Invoke("Task not completed");
+                return;
+            }
+
+            var aesKey = Convert.FromBase64String(task.EncryptedKey!);
+            var fileName = task.FileName;
+            var fileSize = task.FileSize;
+            var chunkSize = task.ChunkSize;
+            var chunkCount = task.ChunkCount;
+
+            var outputPath = Path.Combine(outputDir, fileName);
+            if (File.Exists(outputPath))
+                outputPath = Path.Combine(outputDir, $"{Path.GetFileNameWithoutExtension(fileName)}_{taskId}{Path.GetExtension(fileName)}");
+
+            _progress.Reset();
+            _progress.FileName = fileName;
+            _progress.TotalBytes = fileSize;
+            _progress.TotalFiles = 1;
+            _progress.IsTransferring = true;
+
+            var downloadedChunks = new HashSet<int>();
+            var resumeState = _chunkManager.LoadResumeState(taskId.ToString());
+            if (resumeState != null)
+            {
+                downloadedChunks = new HashSet<int>(resumeState.UploadedChunks);
+            }
+
+            using var fs = new FileStream(outputPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
+            fs.SetLength(fileSize);
+
+            for (int i = 0; i < chunkCount; i++)
+            {
+                token.ThrowIfCancellationRequested();
+
+                if (downloadedChunks.Contains(i))
+                {
+                    long skipBytes = Math.Min(chunkSize, fileSize - (long)i * chunkSize);
+                    _progress.BytesTransferred += skipBytes;
+                    continue;
+                }
+
+                var chunkResp = await _api.GetRawAsync($"/api/transfer/chunks/{taskId}/{i}");
+                if (chunkResp == null || !chunkResp.IsSuccessStatusCode)
+                {
+                    TransferFailed?.Invoke($"Download chunk {i} failed");
+                    return;
+                }
+
+                var encryptedData = await chunkResp.Content.ReadAsByteArrayAsync(token);
+                var decryptedData = _chunkManager.DecryptChunk(aesKey, encryptedData);
+
+                fs.Seek((long)i * chunkSize, SeekOrigin.Begin);
+                await fs.WriteAsync(decryptedData, token);
+
+                downloadedChunks.Add(i);
+                _progress.BytesTransferred += decryptedData.Length;
+                _progress.FileBytesTransferred = _progress.BytesTransferred;
+                ProgressUpdated?.Invoke(_progress);
+
+                if (resumeState == null)
+                    resumeState = new ResumeState
+                    {
+                        TaskId = taskId.ToString(),
+                        FileName = fileName,
+                        FileSize = fileSize,
+                        ChunkSize = chunkSize,
+                        CreatedAt = DateTime.UtcNow.ToString("o")
+                    };
+                resumeState.UploadedChunks = downloadedChunks.ToList();
+                _chunkManager.SaveResumeState(resumeState);
+            }
+
+            _chunkManager.DeleteResumeState(taskId.ToString());
+            _progress.IsTransferring = false;
+            _progress.FilesCompleted = 1;
+            TransferComplete?.Invoke(fileName);
+        }
+        catch (OperationCanceledException)
+        {
+            _progress.IsCancelled = true;
+        }
+        catch (Exception ex)
+        {
+            TransferFailed?.Invoke(ex.Message);
+        }
+        finally
+        {
+            _progress.IsTransferring = false;
+            TransferEnded?.Invoke();
+        }
+    }
+
     public void CancelTransfer()
     {
         _cts?.Cancel();

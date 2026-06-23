@@ -26,6 +26,11 @@ public class AdminController {
         return Result.ok(adminService.getDashboard());
     }
 
+    @GetMapping("/dashboard/transfer-trend")
+    public Result<Map<String, Long>> transferTrend(@RequestParam(defaultValue = "7") int days) {
+        return Result.ok(adminService.getTransferTrend(days));
+    }
+
     // ── Config ──
 
     @GetMapping("/config")
