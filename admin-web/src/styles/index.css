@@ -1,0 +1,318 @@
+/* ── 全局样式：主题变量 / 布局规范 / 通用状态 ── */
+
+:root {
+  --brand: #e57153;
+  --brand-hover: #d46a4c;
+  --brand-bg: #fdf1ed;
+
+  --app-bg: #f6f7f9;
+  --app-card-bg: #ffffff;
+  --app-text: #1f2329;
+  --app-text-secondary: #6b7280;
+  --app-border: #f0f1f3;
+
+  /* 语义色：图表/状态徽标共用（此前未定义，导致 SVG stroke/legend 点不显示） */
+  --app-success: #3f9c63;
+  --app-danger: #d4574e;
+  --app-warning: #d89614;
+
+  --app-radius: 12px;
+  --app-content-max: 1560px;
+}
+
+:root[data-theme='dark'] {
+  --brand-bg: rgba(229, 113, 83, 0.16);
+  --app-bg: #0f1113;
+  --app-card-bg: #1b1d20;
+  --app-text: #e6e8eb;
+  /* 暗色次要文字：WCAG 对比度 ≥4.5:1（旧值 #9aa0a8 在 #1b1d20 卡片上约 4.1:1） */
+  --app-text-secondary: #a9afb7;
+  --app-border: #2a2d31;
+
+  /* 暗色语义色：提亮以保证在 #1b1d20 上的可读性 */
+  --app-success: #6cc48d;
+  --app-danger: #f27477;
+  --app-warning: #e0a94a;
+}
+
+/* 空态说明文字：antd 默认 25% 透明，暗色下对比度不足（≈2.1:1），统一提到次要文字色 */
+.ant-empty-description {
+  color: var(--app-text-secondary);
+}
+
+/* 菜单分组标题：组标题色 token 未生效（仍按 45% 透明度渲染，≈3.8:1），显式指定 */
+.ant-menu-item-group-title {
+  color: var(--app-text-secondary) !important;
+}
+
+/* 表格自定义空态文字：antd 给 .ant-table-placeholder 用了 disabled 色（25% 透明），
+   暗色下对比度不足，统一提到次要文字色 */
+.ant-table-placeholder {
+  color: var(--app-text-secondary) !important;
+}
+.ant-table-placeholder .cell-main,
+.ant-table-placeholder .cell-sub {
+  color: var(--app-text-secondary) !important;
+}
+
+/* 实心主按钮：白字压在品牌橙上只有 3.1:1，改用近黑文字（约 4.9:1） */
+.ant-btn-primary {
+  color: #0b0b0b !important;
+}
+.ant-btn-primary:disabled {
+  color: rgba(11, 11, 11, 0.55) !important;
+}
+
+/* 暗色下「文字型危险按钮」：antd 危险色 #dc4446 在深底上约 4.0:1，提亮到 ≈6:1 */
+:root[data-theme='dark'] .ant-btn-dangerous:not(.ant-btn-primary) {
+  color: #f27477 !important;
+}
+
+/* 单选按钮组选中态：选中底色=主色衍生色 #c6634a，白字仅 ~4.0:1，改近黑字（≈4.9:1） */
+.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  color: #0b0b0b !important;
+}
+.ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before {
+  background-color: #0b0b0b !important;
+}
+
+/* 暗色下选中菜单项：antd 生成色 #c6634a 对 18% 选中底约 3.5:1，改为浅陶土色（≈7.5:1） */
+:root[data-theme='dark'] .ant-menu-item-selected,
+:root[data-theme='dark'] .ant-menu-item-selected a {
+  color: #ffb09a !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+html {
+  /* 稳定滚动条占位，避免页面切换时 1px 横向抖动 */
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条（暗色下也可见） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.35);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.55);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── 布局规范 ── */
+.page-container {
+  width: 100%;
+  max-width: var(--app-content-max);
+  margin: 0 auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.page-head h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.page-head .sub {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+}
+
+/* 表格页三段式：筛选栏 */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filter-bar .grow {
+  flex: 1;
+}
+
+/* 统计卡 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-card {
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 18px 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.stat-card:hover {
+  border-color: rgba(229, 113, 83, 0.45);
+  box-shadow: 0 6px 22px rgba(229, 113, 83, 0.1);
+  transform: translateY(-1px);
+}
+
+.stat-card .label {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-card .value {
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 8px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card .hint {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.stat-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-bg);
+  color: var(--brand);
+  font-size: 16px;
+}
+
+/* 卡片容器统一留白 */
+.content-card {
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 20px;
+}
+
+.content-card + .content-card {
+  margin-top: 16px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.section-title h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--app-text-secondary);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 页面切换动效 */
+.fade-page-enter-active,
+.fade-page-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.fade-page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.fade-page-leave-to {
+  opacity: 0;
+}
+
+/* 表格单元格里的次要信息 */
+.cell-main {
+  font-weight: 500;
+  line-height: 1.4;
+}
+.cell-sub {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ant-design-vue 细节微调 */
+.ant-table-wrapper .ant-table {
+  background: transparent;
+}
+
+.ant-pagination {
+  margin-bottom: 0 !important;
+}
+
+a {
+  color: var(--brand);
+}

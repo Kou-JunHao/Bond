@@ -15,4 +15,9 @@ public class WorkspaceMember {
     private Long userId;
     private Integer role;
     private LocalDateTime joinedAt;
+    /**
+     * V34（task-183B）：all=不受限（默认，与历史行为一致）；restricted=仅按 workspace_acl 授权访问。
+     * owner/admin 的该字段被忽略（永远等价 all）。
+     */
+    private String accessMode;
 }

@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             x:Class="Bond.Views.Pages.TransferPage"
+             x:DataType="vm:TransferPageViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*" Margin="24,18,24,20">
+
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Spacing="3">
+                <TextBlock Classes="h1" Text="传输" />
+                <TextBlock Classes="sub" Text="设备传输任务与网盘上传 / 下载会话 · 进行中自动刷新" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Classes="meta" Text="总体进度" VerticalAlignment="Center"
+                           IsVisible="{Binding HasOverallProgress}" />
+                <ProgressBar Width="140" Height="6" Minimum="0" Maximum="100" Value="{Binding Overall}"
+                             VerticalAlignment="Center" IsVisible="{Binding HasOverallProgress}" />
+                <TextBlock Classes="meta" Text="等待数据" VerticalAlignment="Center"
+                           IsVisible="{Binding ShowOverallWaiting}" />
+                <Button Classes="soft" Command="{Binding RefreshCommand}"
+                        ToolTip.Tip="从服务器重新拉取传输任务与会话">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <mi:MaterialIcon Kind="Refresh" IconSize="15" />
+                        <TextBlock Text="刷新" FontSize="11.5" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- 统计条 -->
+        <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,14">
+            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16" Margin="0,0,10,0">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="meta" Text="进行中" />
+                    <TextBlock Classes="metric" Text="{Binding RunningCount}" />
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16" Margin="0,0,10,0">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="meta" Text="已完成" />
+                    <TextBlock Classes="metric" Text="{Binding DoneCount}" />
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16" Margin="0,0,10,0">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="meta" Text="失败 · 过期" />
+                    <TextBlock Classes="metric" Text="{Binding FailedCount}" />
+                </StackPanel>
+            </suki:GlassCard>
+            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="meta" Text="总大小" />
+                    <TextBlock Classes="metric" Text="{Binding TotalTraffic}" />
+                </StackPanel>
+            </suki:GlassCard>
+        </UniformGrid>
+
+        <!-- 传输中心：设备任务 + 上传会话 + 下载会话 合并列表 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" Grid.Row="2" IsOpaque="True" Padding="0">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="16,10,16,10">
+                    <TextBlock Classes="h2" Text="传输中心" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Classes="meta" Text="{Binding QueueSummary}"
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- 筛选页签 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="12,0,12,8">
+                    <Button Classes="tab" Classes.active="{Binding IsFilterAll}"
+                            Command="{Binding SetFilterCommand}" CommandParameter="All"
+                            ToolTip.Tip="显示全部传输项">
+                        <TextBlock Text="全部" FontSize="12" />
+                    </Button>
+                    <Button Classes="tab" Classes.active="{Binding IsFilterDevices}"
+                            Command="{Binding SetFilterCommand}" CommandParameter="Devices"
+                            ToolTip.Tip="只显示设备传输任务">
+                        <TextBlock Text="设备" FontSize="12" />
+                    </Button>
+                    <Button Classes="tab" Classes.active="{Binding IsFilterUploads}"
+                            Command="{Binding SetFilterCommand}" CommandParameter="Uploads"
+                            ToolTip.Tip="只显示上传会话">
+                        <TextBlock Text="上传" FontSize="12" />
+                    </Button>
+                    <Button Classes="tab" Classes.active="{Binding IsFilterDownloads}"
+                            Command="{Binding SetFilterCommand}" CommandParameter="Downloads"
+                            ToolTip.Tip="只显示下载会话">
+                        <TextBlock Text="下载" FontSize="12" />
+                    </Button>
+                </StackPanel>
+
+                <Border Grid.Row="1" Classes="rule" Margin="0" VerticalAlignment="Bottom" />
+
+                <ProgressBar Grid.Row="2" Height="2" Minimum="0" Maximum="100"
+                             IsIndeterminate="True" VerticalAlignment="Top"
+                             IsVisible="{Binding IsLoading}" />
+
+                <ListBox Grid.Row="2" ItemsSource="{Binding View}" Background="Transparent"
+                         Margin="6,4,6,6"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:TransferRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" Height="62" Margin="8,0"
+                                  ToolTip.Tip="{Binding FileName}">
+                                <Border Classes="tile" Width="36" Height="36" CornerRadius="11"
+                                        Background="{Binding IconBackground}">
+                                    <mi:MaterialIcon Kind="{Binding Icon}" IconSize="18"
+                                                     Foreground="{Binding IconBrush}"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center"
+                                            Spacing="5">
+                                    <!-- 文件名 + 类型徽标同一行：徽标紧贴名称，不再压进度条右端与百分比抢位置（task-101） -->
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                        <TextBlock Text="{Binding FileName}" Classes="body" MaxWidth="520"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding FileName}" />
+                                        <Border Grid.Column="1" CornerRadius="5" Padding="6,1" Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource BondSurfaceAlt}">
+                                            <TextBlock Text="{Binding KindText}" FontSize="10"
+                                                       Foreground="{DynamicResource BondTertiary}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding ProgressText}" Classes="meta"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   IsVisible="{Binding ShowProgress}" />
+                                    </Grid>
+                                    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}"
+                                                 Height="5" IsVisible="{Binding ShowProgress}" />
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{Binding DetailText}" Classes="meta"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <!-- 速度列固定留白：只有进行中的行显示数值，其余留空不跳动（task-101） -->
+                                        <Border Grid.Column="1" Width="76" Margin="12,0,4,0">
+                                            <TextBlock Text="{Binding SpeedText}" Classes="meta"
+                                                       HorizontalAlignment="Right"
+                                                       IsVisible="{Binding ShowSpeed}" />
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                            VerticalAlignment="Center">
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanAccept}"
+                                            Command="{Binding $parent[UserControl].DataContext.AcceptRowCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="接受（对方发来的文件）">
+                                        <mi:MaterialIcon Kind="Check" IconSize="15"
+                                                         Foreground="{DynamicResource BondAccent}" />
+                                    </Button>
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanReject}"
+                                            Command="{Binding $parent[UserControl].DataContext.RejectRowCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="拒绝接收（文件不会保存到本机）">
+                                        <mi:MaterialIcon Kind="Cancel" IconSize="15"
+                                                         Foreground="{DynamicResource BondError}" />
+                                    </Button>
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanCancel}"
+                                            Command="{Binding $parent[UserControl].DataContext.CancelRowCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="{Binding CancelTip}">
+                                        <mi:MaterialIcon Kind="StopCircle" IconSize="15"
+                                                         Foreground="{DynamicResource BondError}" />
+                                    </Button>
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanRetry}"
+                                            Command="{Binding $parent[UserControl].DataContext.RetryRowCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="重试（需要本机仍有源文件）">
+                                        <mi:MaterialIcon Kind="Refresh" IconSize="15"
+                                                         Foreground="{DynamicResource BondAccent}" />
+                                    </Button>
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanResume}"
+                                            Command="{Binding $parent[UserControl].DataContext.ResumeRowCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="续传（从已上传分片继续）">
+                                        <mi:MaterialIcon Kind="Play" IconSize="15"
+                                                         Foreground="{DynamicResource BondAccent}" />
+                                    </Button>
+                                    <Button Classes="ghosticon rowaction"
+                                            IsVisible="{Binding CanOpenLocation}"
+                                            AutomationProperties.Name="定位到文件"
+                                            Command="{Binding $parent[UserControl].DataContext.OpenLocationCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip.Tip="定位到文件：网盘上传/下载会切到文件页并选中该文件；设备任务打开系统文件夹">
+                                        <mi:MaterialIcon Kind="FolderOpen" IconSize="15"
+                                                         Foreground="{DynamicResource BondTertiary}" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- task-43：失败态（不要画成空态） -->
+                <Border Grid.Row="2" IsVisible="{Binding HasError}" VerticalAlignment="Top"
+                        HorizontalAlignment="Stretch" Margin="12,8,12,0" Padding="10,8" CornerRadius="8"
+                        Background="{DynamicResource BondSurfaceAlt}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="15"
+                                         Foreground="{DynamicResource BondError}"
+                                         VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding ErrorText}" FontSize="11.5"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                   Margin="8,0,10,0" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Classes="soft" Command="{Binding RefreshCommand}"
+                                Padding="12,0" MinHeight="32" MinWidth="56" ToolTip.Tip="重新加载传输任务">
+                            <TextBlock Text="重试" FontSize="12" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- 空状态 -->
+                <StackPanel Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            MinHeight="320" Spacing="10" IsVisible="{Binding IsEmpty}" IsHitTestVisible="False">
+                    <Border Width="56" Height="56" CornerRadius="28"
+                            Background="{DynamicResource BondSurfaceAlt}">
+                        <mi:MaterialIcon Kind="Upload" IconSize="24"
+                                         Foreground="{DynamicResource BondTertiary}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding EmptyTitle}" FontSize="13" FontWeight="Medium"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding EmptyHint}"
+                               FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                               HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="380"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </suki:GlassCard>
+    </Grid>
+</UserControl>

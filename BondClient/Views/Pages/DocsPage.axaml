@@ -1,0 +1,323 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             xmlns:controls="using:Bond.Views.Controls"
+             x:Class="Bond.Views.Pages.DocsPage"
+             x:DataType="vm:DocsPageViewModel">
+
+    <Grid RowDefinitions="Auto,*" Margin="24,18,24,20">
+
+        <!-- 顶部工具条 -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+            <StackPanel Spacing="3">
+                <TextBlock Classes="h1" Text="笔记" />
+                <TextBlock Classes="sub" Text="富文本笔记：多人可见、自动保存；支持标题 / 表格 / 图片链接，冲突时可覆盖或载入服务器版本" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ComboBox ItemsSource="{Binding Spaces}" SelectedItem="{Binding SelectedSpace}"
+                          MinWidth="140" VerticalAlignment="Center" ToolTip.Tip="选择文档所属空间" />
+                <Button Classes="ghosticon"
+                        Command="{Binding RetryCommand}" ToolTip.Tip="刷新">
+                    <mi:MaterialIcon Kind="Refresh" IconSize="15" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="14">
+
+            <!-- 左：列表 -->
+            <Border Grid.Column="0" Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="12"
+                    Padding="12,12,10,10">
+                <Grid RowDefinitions="Auto,Auto,*">
+
+                    <TextBlock Grid.Row="0" Text="文档列表" FontSize="12.5" FontWeight="SemiBold"
+                               Foreground="{DynamicResource BondPrimary}" Margin="0,0,0,8" />
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                        <TextBox Text="{Binding NewDocTitle}" PlaceholderText="新文档标题" MinWidth="150"
+                                 VerticalAlignment="Center" />
+                        <Button Classes="primary" Padding="10,6" Command="{Binding CreateCommand}"
+                                ToolTip.Tip="在根目录新建 Markdown 文档">
+                            <mi:MaterialIcon Kind="Plus" IconSize="13" Foreground="{DynamicResource BondOnAccent}" />
+                        </Button>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="8">
+
+                            <!-- 加载态 -->
+                            <StackPanel IsVisible="{Binding IsLoading}" Spacing="6">
+                                <ProgressBar IsIndeterminate="True" Height="4" />
+                                <TextBlock Classes="meta" Text="正在加载文档…" />
+                            </StackPanel>
+
+                            <!-- 失败态 -->
+                            <Border IsVisible="{Binding HasError}" Background="{DynamicResource BondAccentFill}"
+                                    BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                                    CornerRadius="8" Padding="10,8">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="加载失败" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                    <TextBlock Text="{Binding ErrorText}" Classes="meta" TextWrapping="Wrap" />
+                                    <Button Classes="outline" Content="重试" HorizontalAlignment="Left"
+                                            Command="{Binding RetryCommand}" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 空态 -->
+                            <Border IsVisible="{Binding IsEmpty}" Background="{DynamicResource BondSurfaceAlt}"
+                                    CornerRadius="8" Padding="12,10">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="这个目录还没有文档" FontSize="12" />
+                                    <TextBlock Classes="meta" Text="在上方输入标题，点 + 新建文档" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 列表 -->
+                            <ItemsControl ItemsSource="{Binding Documents}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:DocumentSummary">
+                                        <Button Background="Transparent" BorderThickness="0" Padding="10,8"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                Command="{Binding $parent[ItemsControl].((vm:DocsPageViewModel)DataContext).OpenCommand}"
+                                                CommandParameter="{Binding Id}">
+                                            <StackPanel Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <mi:MaterialIcon Kind="FileDocumentOutline" IconSize="14"
+                                                                    Foreground="{DynamicResource BondAccent}" />
+                                                    <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="Medium"
+                                                               TextTrimming="CharacterEllipsis" MaxWidth="200"
+                                                               ToolTip.Tip="{Binding Title}" />
+                                                </StackPanel>
+                                                <TextBlock Classes="meta" Text="{Binding PreviewText}"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                                                <TextBlock Classes="meta" Text="{Binding MetaText}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- 右：编辑器 / 提示 -->
+            <Border Grid.Column="1" Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="12"
+                    Padding="16,14">
+                <Panel>
+
+                <!-- 未打开时的提示 -->
+                <StackPanel IsVisible="{Binding !IsEditorOpen}" Spacing="8" VerticalAlignment="Center">
+                    <mi:MaterialIcon Kind="FileDocumentEditOutline" IconSize="34"
+                                    Foreground="{DynamicResource BondAccent}" HorizontalAlignment="Center" />
+                    <TextBlock Text="从左侧选择一篇文档开始编辑" Classes="sub" HorizontalAlignment="Center" />
+                    <TextBlock Classes="meta" Text="自动保存：停止输入 3 秒后保存；Ctrl+S 立即保存"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <Grid IsVisible="{Binding IsEditorOpen}" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+                    <!-- 头部：返回 + 标题 + 状态 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+                        <Button Classes="ghosticon" Padding="5" MinWidth="32" MinHeight="32"
+                                Command="{Binding CloseEditorCommand}" ToolTip.Tip="返回列表">
+                            <mi:MaterialIcon Kind="ArrowLeft" IconSize="15" />
+                        </Button>
+                        <StackPanel Grid.Column="1" Spacing="2" Margin="8,0,0,0">
+                            <TextBox Text="{Binding EditorTitle}" PlaceholderText="文档标题" MaxWidth="360"
+                                     HorizontalAlignment="Left" FontSize="13.5" FontWeight="SemiBold"
+                                     Background="Transparent" BorderThickness="0" Padding="0"
+                                     IsReadOnly="{Binding IsViewingVersion}" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Classes="meta" Text="{Binding WordCount, StringFormat='{}{0} 字'}" />
+                                <TextBlock Classes="meta" Text="{Binding SaveStateText}"
+                                           Foreground="{DynamicResource BondAccent}" />
+                                <TextBlock Classes="meta" Text="{Binding LastEditorName, StringFormat='最后由 {0} 编辑'}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                            <Button Classes="outline" Padding="10,5" Content="版本历史"
+                                    Command="{Binding ToggleVersionsCommand}" />
+                            <Button Classes="primary" Padding="12,5" Content="保存 (Ctrl+S)"
+                                    Command="{Binding SaveNowCommand}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 冲突提示条 -->
+                    <Border Grid.Row="1" IsVisible="{Binding HasConflict}" Margin="0,0,0,8"
+                            Background="{DynamicResource BondAccentFill}" BorderBrush="{DynamicResource BondAccentBorder}"
+                            BorderThickness="1" CornerRadius="8" Padding="10,8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="保存冲突：文档已被他人修改" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BondAccent}" />
+                                <TextBlock Text="{Binding ConflictText}" Classes="meta" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Button Classes="outline" Content="并排看差异"
+                                        Command="{Binding OpenDiffCommand}" ToolTip.Tip="左右只读对比：我的版本 / 服务器版本" />
+                                <Button Classes="outline" Content="载入服务器版本"
+                                        Command="{Binding ReloadFromServerCommand}" />
+                                <Button Classes="primary" Content="用我的版本覆盖"
+                                        Command="{Binding ForceOverwriteCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 富文本工具栏提示（task-138：编辑内核为本地 Quill，格式化按钮在编辑器内） -->
+                    <Border Grid.Row="2" IsVisible="{Binding !IsViewingVersion}" Background="{DynamicResource BondSurfaceAlt}"
+                            CornerRadius="8" Padding="10,6" Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Classes="meta" Text="富文本编辑 · 停止输入 3 秒自动保存 · Ctrl+S 立即保存"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Classes="meta" Text="·" VerticalAlignment="Center" />
+                                <TextBlock Classes="meta" Text="格式化按钮与图片（网络图片链接）在编辑器工具栏里"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 正文：本地 Quill 富文本宿主（task-138，完全离线）；版本只读保持原样 -->
+                    <Grid Grid.Row="3">
+                        <Border IsVisible="{Binding !IsViewingVersion}" CornerRadius="8" ClipToBounds="True"
+                                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                            <controls:DocumentEditorView x:Name="EditorView" />
+                        </Border>
+
+                        <Border IsVisible="{Binding IsViewingVersion}" Background="{DynamicResource BondSurfaceAlt}"
+                                CornerRadius="8" Padding="14,12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="历史版本（只读）" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BondAccent}" />
+                                <TextBlock Text="{Binding ViewingVersionText}" Classes="meta" TextWrapping="Wrap" />
+                                <Button Classes="outline" Content="返回编辑" HorizontalAlignment="Left"
+                                        Command="{Binding CloseVersionViewCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 底部操作 -->
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                        <Button Classes="primary" Padding="14,6" Content="在浏览器中预览"
+                                Command="{Binding PreviewInBrowserCommand}" />
+                        <Button Classes="outline" Padding="12,6" Content="导出 Markdown"
+                                Command="{Binding ExportMarkdownCommand}" />
+                        <Button Classes="outline" Padding="12,6" Content="导出 HTML"
+                                Command="{Binding ExportHtmlCommand}" />
+                        <Button Classes="outline" Padding="12,6" Content="导出 PDF"
+                                Command="{Binding ExportPdfCommand}" />
+                        <TextBlock Classes="meta" VerticalAlignment="Center" Margin="6,0,0,0"
+                                   Text="预览/HTML 用服务端渲染；PDF 在本地由 WebView2 打印导出" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- 版本历史抽屉（覆盖在编辑器右侧） -->
+                <Border IsVisible="{Binding IsVersionsOpen}" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                        Width="290" Background="{DynamicResource BondSurface}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="12"
+                        Padding="12,10" BoxShadow="0 10 28 0 #2E1B1A17">
+                    <Grid RowDefinitions="Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                            <TextBlock Text="版本历史" FontSize="12.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BondPrimary}" />
+                            <Button Grid.Column="1" Classes="ghosticon" Padding="4" MinWidth="32" MinHeight="32"
+                                    Command="{Binding ToggleVersionsCommand}" ToolTip.Tip="关闭">
+                                <mi:MaterialIcon Kind="Close" IconSize="13" />
+                            </Button>
+                        </Grid>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="6">
+                                <ProgressBar IsIndeterminate="True" Height="3" IsVisible="{Binding IsVersionLoading}" />
+                                <ItemsControl ItemsSource="{Binding Versions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:DocumentVersionItem">
+                                            <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8"
+                                                    Padding="9,7">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <StackPanel Spacing="1">
+                                                        <TextBlock Text="{Binding MetaText}" FontSize="12" FontWeight="Medium" />
+                                                        <TextBlock Classes="meta" Text="{Binding WordCount, StringFormat='{}{0} 字内容'}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                                        <Button Classes="ghosticon" Padding="4" MinWidth="32" MinHeight="32"
+                                                                Command="{Binding $parent[ItemsControl].((vm:DocsPageViewModel)DataContext).ViewVersionCommand}"
+                                                                CommandParameter="{Binding}" ToolTip.Tip="查看此版本">
+                                                            <mi:MaterialIcon Kind="EyeOutline" IconSize="13" />
+                                                        </Button>
+                                                        <Button Classes="ghosticon" Padding="4" MinWidth="32" MinHeight="32"
+                                                                Command="{Binding $parent[ItemsControl].((vm:DocsPageViewModel)DataContext).RestoreVersionCommand}"
+                                                                CommandParameter="{Binding}" ToolTip.Tip="恢复此版本">
+                                                            <mi:MaterialIcon Kind="History" IconSize="13" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+                </Panel>
+            </Border>
+        </Grid>
+
+        <!-- 冲突差异浮层（task-138：左右只读，不做 diff 算法；放在根层以免被编辑卡片裁切） -->
+        <Border Grid.RowSpan="2" IsVisible="{Binding IsDiffOpen}" Background="{DynamicResource BondScrim}" ZIndex="600">
+            <Border Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    CornerRadius="12" Padding="16" Margin="60"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Width="1500"
+                    BoxShadow="0 14 34 0 #33000000">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                        <TextBlock Text="并排看差异（只读）" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondPrimary}" />
+                        <Button Grid.Column="1" Classes="ghosticon" Padding="4" MinWidth="32" MinHeight="32"
+                                Command="{Binding CloseDiffCommand}" ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10" Height="380">
+                        <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8" Padding="10">
+                            <Grid RowDefinitions="Auto,*">
+                                <TextBlock Classes="meta" Text="我的版本（未保存）" Margin="0,0,0,6" />
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <SelectableTextBlock Text="{Binding DiffMineText}" TextWrapping="Wrap"
+                                                         FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="12"
+                                                         Foreground="{DynamicResource BondPrimary}" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                        <Border Grid.Column="1" Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8" Padding="10">
+                            <Grid RowDefinitions="Auto,*">
+                                <TextBlock Classes="meta" Text="{Binding DiffServerCaption}" Margin="0,0,0,6" />
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <SelectableTextBlock Text="{Binding DiffServerText}" TextWrapping="Wrap"
+                                                         FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="12"
+                                                         Foreground="{DynamicResource BondPrimary}" />
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                                HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Classes="outline" Content="载入服务器版本"
+                                Command="{Binding ReloadFromServerCommand}" />
+                        <Button Classes="primary" Content="用我的版本覆盖"
+                                Command="{Binding ForceOverwriteCommand}" />
+                        <Button Classes="outline" Content="关闭" Command="{Binding CloseDiffCommand}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

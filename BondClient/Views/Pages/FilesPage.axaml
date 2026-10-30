@@ -1,0 +1,1946 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             xmlns:c="using:Bond.Views.Controls"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="Bond.Views.Pages.FilesPage"
+             x:DataType="vm:FilesPageViewModel"
+             Focusable="True"
+             KeyDown="OnPageKeyDown"
+             DragDrop.AllowDrop="True"
+             DragDrop.DragEnter="OnFilesDragEnter"
+             DragDrop.DragOver="OnFilesDragOver"
+             DragDrop.DragLeave="OnFilesDragLeave"
+             DragDrop.Drop="OnFilesDrop">
+
+    <Grid RowDefinitions="Auto,*" Margin="24,18,24,20">
+
+        <!-- ===== task-116：整窗拖拽遮罩（覆盖页面与右侧栏） ===== -->
+        <Border Grid.RowSpan="2"
+                IsVisible="{Binding IsExternalDragActive}"
+                IsHitTestVisible="False"
+                Background="#E6FAF9F5"
+                BorderBrush="{DynamicResource BondAccent}"
+                BorderThickness="2"
+                CornerRadius="14"
+                ZIndex="500">
+            <Border CornerRadius="12"
+                    BorderBrush="{DynamicResource BondAccentBorder}"
+                    BorderThickness="1"
+                    Margin="10"
+                    Background="#F2FFFFFF">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                    <mi:MaterialIcon Kind="TrayArrowDown" Width="44" Height="44"
+                                     Foreground="{DynamicResource BondAccent}" />
+                    <TextBlock Classes="h2" Text="拖到这里上传" HorizontalAlignment="Center" />
+                    <TextBlock Classes="sub" Text="{Binding ExternalDropHint}" HorizontalAlignment="Center" />
+                    <TextBlock Classes="sub" Text="文件夹暂不支持（后端未提供建目录接口）"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- ===== task-120/130：新建文件夹命名弹窗（标题 → 目标目录 → 输入框 → 错误行 → 按钮） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsNewFolderOpen}"
+              Background="#66000000" ZIndex="600">
+            <Border Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}"
+                    BorderThickness="1"
+                    BoxShadow="0 10 28 0 #2E1B1A17"
+                    CornerRadius="14"
+                    Width="460"
+                    Padding="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="h2" Text="新建文件夹" />
+                    <TextBlock Classes="sub" Text="{Binding NewFolderTargetText}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBox x:Name="NewFolderNameBox" Classes="input"
+                             Text="{Binding NewFolderName, Mode=TwoWay}"
+                             KeyDown="OnNewFolderKeyDown"
+                             AttachedToVisualTree="OnNewFolderBoxAttached" />
+                    <!-- task-130：错误行固定 18px，出现/消失不撑高对话框 -->
+                    <Panel Height="18">
+                        <TextBlock Classes="sub" FontSize="12" TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource BondError}"
+                                   VerticalAlignment="Center"
+                                   Text="{Binding NewFolderError}"
+                                   IsVisible="{Binding NewFolderError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </Panel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="outline" Content="取消" IsCancel="True"
+                                IsEnabled="{Binding CanCancelNewFolder}"
+                                Command="{Binding CancelCreateFolderCommand}" />
+                        <Button Classes="primary" Content="{Binding NewFolderSubmitText}" IsDefault="True"
+                                Command="{Binding CreateFolderCommand}"
+                                IsEnabled="{Binding CanSubmitNewFolder}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 页面头 ===== -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Spacing="3">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Classes="h1" Text="文件" VerticalAlignment="Center" />
+                    <!-- 当前空间徽标：个人空间 / 团队工作区 -->
+                    <Border Background="{DynamicResource BondAccentSoft}" CornerRadius="7"
+                            Padding="8,3" VerticalAlignment="Center"
+                            ToolTip.Tip="文件页当前展示的空间">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <mi:MaterialIcon Kind="{Binding SpaceIcon}"
+                                             IconSize="12"
+                                             Foreground="{DynamicResource BondAccent}"
+                                             VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CurrentSpaceName}" FontSize="11.5"
+                                       FontWeight="Medium"
+                                       Foreground="{DynamicResource BondAccent}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <TextBlock Classes="sub" Text="{Binding SpaceSubtitle}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+
+                <!-- 空间切换器：个人空间（默认）+ 我加入的团队工作区 -->
+                <ComboBox x:Name="SpacePicker" Width="172" Height="34" MinHeight="34"
+                          ItemsSource="{Binding Spaces}"
+                          SelectedItem="{Binding SelectedSpace}"
+                          VerticalContentAlignment="Center" FontSize="12.5"
+                          ToolTip.Tip="切换个人空间 / 团队工作区">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:FileSpace">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="{Binding Icon}" IconSize="13"
+                                                 VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <!-- task-123：搜索入口（图标 + Ctrl+F 提示）。搜索框复用同一处，不重复放第二个。 -->
+                <Button Classes="ghosticon" Width="34" Height="34" Click="OnSearchButtonClick"
+                        ToolTip.Tip="搜索文件（Ctrl+F）">
+                    <mi:MaterialIcon Kind="Magnify" IconSize="15" />
+                </Button>
+
+                <Grid Width="200" Height="34">
+                    <TextBox x:Name="SearchBox" Classes="input" Height="34" MinHeight="34"
+                             Padding="30,0,28,0"
+                             Text="{Binding Keyword}" PlaceholderText="搜索文件（Ctrl+F）"
+                             ToolTip.Tip="搜索个人空间与工作区里的文件；清空即退出搜索"
+                             VerticalContentAlignment="Center" />
+                    <mi:MaterialIcon Kind="Magnify" IconSize="14" Margin="9,0,0,0"
+                                     HorizontalAlignment="Left" VerticalAlignment="Center"
+                                     IsHitTestVisible="False"
+                                     Foreground="{DynamicResource BondTertiary}" />
+                    <Button Classes="ghosticon" Width="22" Height="22" Margin="0,0,4,0"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Command="{Binding ClearSearchCommand}"
+                            IsVisible="{Binding HasKeyword}"
+                            ToolTip.Tip="清空搜索">
+                        <mi:MaterialIcon Kind="Close" IconSize="12" />
+                    </Button>
+                    <ProgressBar Height="2" Minimum="0" Maximum="100" IsIndeterminate="True"
+                                 VerticalAlignment="Bottom" IsVisible="{Binding IsSearching}" />
+                </Grid>
+                <Button Classes="ghosticon" Width="34" Height="34"
+                        Command="{Binding OpenSharesCommand}"
+                        AutomationProperties.Name="打开我的分享"
+                        ToolTip.Tip="我的分享">
+                    <mi:MaterialIcon Kind="LinkVariant" IconSize="15" />
+                </Button>
+                <Button Classes="ghosticon" Width="34" Height="34"
+                        Command="{Binding OpenTrashCommand}"
+                        AutomationProperties.Name="回收站"
+                        ToolTip.Tip="回收站（查看并还原已删除的文件）">
+                    <mi:MaterialIcon Kind="DeleteOutline" IconSize="15" />
+                </Button>
+                <Button Classes="primary" Command="{Binding UploadCommand}"
+                        ToolTip.Tip="上传文件到当前目录">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="Upload" IconSize="13" Foreground="{DynamicResource BondOnAccent}" />
+                        <TextBlock Text="上传" FontSize="12.5" Foreground="{DynamicResource BondOnAccent}" />
+                    </StackPanel>
+                </Button>
+                <!-- task-4：上传到指定文件夹（先选目标目录，再选本地文件） -->
+                <Button Classes="outline" Command="{Binding OpenUploadTargetCommand}"
+                        AutomationProperties.Name="上传到指定文件夹"
+                        ToolTip.Tip="上传到指定文件夹…（可选择任意目标目录）">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="FolderArrowUpOutline" IconSize="13" />
+                        <TextBlock Text="上传到…" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="outline" Click="OnNewFolderClick"
+                        ToolTip.Tip="在当前目录新建文件夹">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="FolderPlusOutline" IconSize="13" />
+                        <TextBlock Text="新建文件夹" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== 主体：列表 + 右侧信息栏 ===== -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,272" ColumnSpacing="14">
+
+            <!-- 文件列表 -->
+            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="0">
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <!-- 工具条：面包屑导航 + 排序 + 视图切换 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="12,8,14,8">
+                        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button Classes="ghosticon" Command="{Binding GoUpCommand}" Padding="6"
+                                    MinWidth="32" MinHeight="32" ToolTip.Tip="上一级">
+                                <mi:MaterialIcon Kind="ChevronLeft" IconSize="13" />
+                            </Button>
+
+                            <ItemsControl ItemsSource="{Binding Breadcrumbs}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:Breadcrumb">
+                                        <StackPanel Orientation="Horizontal" Spacing="2"
+                                                    VerticalAlignment="Center">
+                                            <Button Classes="ghosticon" Padding="6,3"
+                                                    MinWidth="0" MinHeight="24"
+                                                    IsEnabled="{Binding !IsLast}"
+                                                    Click="OnCrumbClick"
+                                                    ToolTip.Tip="{Binding Label}">
+                                                <TextBlock Text="{Binding Label}" FontSize="12.5"
+                                                           FontWeight="Medium" />
+                                            </Button>
+                                            <TextBlock Text="/" Classes="meta" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding !IsLast}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="meta"
+                                   VerticalAlignment="Center" Margin="0,0,12,0" />
+
+                        <!-- 排序方式（持久化到 prefs.json） -->
+                        <ComboBox Grid.Column="3" Width="174" Height="30" MinHeight="30"
+                                  ItemsSource="{Binding SortOptions}"
+                                  SelectedItem="{Binding SelectedSort}"
+                                  FontSize="11.5" VerticalContentAlignment="Center"
+                                  ToolTip.Tip="排序方式（文件夹始终排在文件前面）">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SortOption">
+                                    <TextBlock Text="{Binding Label}" FontSize="11.5" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <!-- 列表 / 平铺切换（状态持久化） -->
+                        <Button Grid.Column="4" Classes="ghosticon" Command="{Binding ToggleViewCommand}"
+                                Padding="7,5" MinWidth="30" MinHeight="30" Margin="6,0,0,0"
+                                AutomationProperties.Name="切换列表平铺视图"
+                                ToolTip.Tip="{Binding ViewToggleTip}">
+                            <mi:MaterialIcon Kind="{Binding ViewToggleIcon}" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <Border Grid.Row="0" Classes="rule" Margin="0" VerticalAlignment="Bottom" />
+
+                    <!-- 行列表：行高 40（大厂 24–44），选中/悬停语义与平铺一致（无勾）；
+                         外层 ScrollViewer 底部留 80，保证最后一行不被浮动操作条遮挡 -->
+                    <ScrollViewer x:Name="FileListScroll" Grid.Row="1" IsVisible="{Binding !IsTileView}"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  ScrollChanged="OnFileListScrollChanged"
+                                  Padding="0,0,0,68">
+                        <StackPanel>
+                        <!-- 上传中的虚拟行：占一个正常行位，排在最前；完成后同位置换成真实行（task-42） -->
+                        <ItemsControl ItemsSource="{Binding UploadingRows}"
+                                      Background="Transparent"
+                                      Margin="6,4,6,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:UploadTaskItem">
+                                    <Border Classes="filerow" Height="40" Padding="8,0" Margin="0,1"
+                                            Background="Transparent"
+                                            ToolTip.Tip="{Binding FileName}">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="取消上传" Click="OnVirtualUploadCancelClick" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <Panel>
+                                            <Grid ColumnDefinitions="Auto,*,72,96,58">
+                                                <Border Width="32" Height="32" CornerRadius="8"
+                                                        Background="{DynamicResource BondAccentSoft}"
+                                                        VerticalAlignment="Center">
+                                                    <mi:MaterialIcon Kind="Upload" IconSize="15"
+                                                                     Foreground="{DynamicResource BondAccent}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="10,0,12,0"
+                                                            VerticalAlignment="Center" Spacing="1">
+                                                    <TextBlock Text="{Binding FileName}" Classes="body"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="NoWrap" />
+                                                    <TextBlock Text="{Binding SizeText}" Classes="meta"
+                                                               FontSize="11" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Text="{Binding ProgressText}"
+                                                           Classes="meta" VerticalAlignment="Center"
+                                                           HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Column="3" Text="{Binding StatusText}"
+                                                           Classes="meta" FontSize="11"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Right" />
+                                                <StackPanel Grid.Column="4" Orientation="Horizontal"
+                                                            Spacing="2" VerticalAlignment="Center"
+                                                            HorizontalAlignment="Right">
+                                                    <Button Classes="ghosticon" Width="24" Height="24" Padding="0"
+                                                            IsVisible="{Binding IsResumable}"
+                                                            Click="OnVirtualUploadResumeClick"
+                                                            ToolTip.Tip="继续上传">
+                                                        <mi:MaterialIcon Kind="Play" IconSize="12" />
+                                                    </Button>
+                                                    <Button Classes="ghosticon" Width="24" Height="24" Padding="0"
+                                                            Click="OnVirtualUploadCancelClick"
+                                                            ToolTip.Tip="取消上传">
+                                                        <mi:MaterialIcon Kind="Close" IconSize="12" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- 行底部 2px 真实进度（与真实行上传中的进度条同语义） -->
+                                            <ProgressBar Height="2" Minimum="0" Maximum="1"
+                                                         Value="{Binding Progress}"
+                                                         Background="Transparent"
+                                                         Foreground="{DynamicResource BondAccent}"
+                                                         VerticalAlignment="Bottom"
+                                                         HorizontalAlignment="Stretch"
+                                                         Margin="2,0"
+                                                         CornerRadius="1" />
+                                        </Panel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding View}"
+                                      Background="Transparent"
+                                      ContextRequested="OnRowContextRequested"
+                                      Margin="6,4,6,0">
+                        <ItemsControl.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开" IsVisible="{Binding Selected.IsFolder}"
+                                          InputGesture="Enter"
+                                          Click="OnRowMenuOpen" />
+                                <MenuItem Header="下载" IsVisible="{Binding Selected.IsFile}"
+                                          InputGesture="Ctrl+D"
+                                          Click="OnRowMenuDownload" />
+                                <MenuItem Header="重命名" InputGesture="F2" Click="OnRowMenuRename" />
+                                <MenuItem Header="删除" InputGesture="Delete" Click="OnRowMenuDelete" />
+                                <Separator />
+                                <MenuItem Header="发送到设备" Tag="send" />
+                                <Separator />
+                                <MenuItem Header="创建分享链接" Click="OnRowMenuShare"
+                                          ToolTip.Tip="为单个文件或文件夹生成下载链接（文件夹下载为 ZIP；多选不支持）" />
+                                <MenuItem Header="转存到…" Click="OnRowMenuCopy"
+                                          ToolTip.Tip="服务端复制，不消耗下载流量；本期仅支持单个文件" />
+                                <MenuItem Header="移动到…" Click="OnRowMenuMove"
+                                          ToolTip.Tip="移动到当前空间的另一个目录（仅单选；多个请逐个操作）" />
+                                <MenuItem Header="新建文件夹" InputGesture="Ctrl+Shift+N"
+                                          Click="OnRowMenuNewFolder" />
+                            </ContextMenu>
+                        </ItemsControl.ContextMenu>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:NodeItem">
+                                <Border Classes="filerow" Classes.selected="{Binding IsSelected}" Classes.newly="{Binding IsNewlyCreated}"
+                                        Height="40" Padding="8,0" Margin="0,1"
+                                        Background="Transparent"
+                                        ToolTip.Tip="{Binding Name}">
+                                    <Panel>
+                                    <!-- task-166：行内 hover 按钮已取消，操作统一收进底部 SelectionBar / 右键菜单 -->
+                                    <Grid ColumnDefinitions="Auto,*,84,76">
+                                        <!-- 32×32 缩略图；没有缩略图（204/不支持）自动回退类型图标 -->
+                                        <c:ThumbnailView Node="{Binding}" Size="32" RequestWidth="128"
+                                                         VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="10,0,12,0"
+                                                    VerticalAlignment="Center" Spacing="1">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding Name}" Classes="body"
+                                                           ToolTip.Tip="{Binding Name}"
+                                                           IsVisible="{Binding IsNotEditing}" />
+
+                                                <!-- 行内重命名：自动聚焦 + 预选主文件名（不含扩展名） -->
+                                                <TextBox Text="{Binding EditName}" Classes="input"
+                                                         IsVisible="{Binding IsEditing}"
+                                                         Height="28" MinHeight="28" FontSize="12.5"
+                                                         CornerRadius="7" Padding="8,0"
+                                                         VerticalContentAlignment="Center"
+                                                         AttachedToVisualTree="OnRenameBoxAttached"
+                                                         KeyDown="OnRenameBoxKeyDown"
+                                                         LostFocus="OnRenameBoxLostFocus"
+                                                         TextChanged="OnRenameTextChanged"
+                                                         ToolTip.Tip="Enter 保存 · Esc 取消" />
+
+                                                <Border Grid.Column="1" Margin="6,0,0,0"
+                                                        Background="{DynamicResource BondAccentSoft}" CornerRadius="4"
+                                                        Padding="5,1" VerticalAlignment="Center"
+                                                        IsVisible="{Binding IsShared}">
+                                                    <TextBlock Text="共享" FontSize="9.5"
+                                                               Foreground="{DynamicResource BondAccent}" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding SubtitleText}" Classes="meta" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                       IsVisible="{Binding IsNotEditing}" />
+                                            <TextBlock Text="{Binding EditError}" FontSize="10"
+                                                       Foreground="{DynamicResource BondError}"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                       ToolTip.Tip="{Binding EditError}"
+                                                       IsVisible="{Binding HasEditError}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding SizeText}" Classes="meta"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                        <TextBlock Grid.Column="3" Text="{Binding KindText}" Classes="meta"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                    </Grid>
+
+                                        <!-- 上传中：行底部 2px 真实进度条（不撑高行，不参与选中语义） -->
+                                        <ProgressBar Height="2" Minimum="0" Maximum="100"
+                                                    Value="{Binding UploadProgress}"
+                                                    IsVisible="{Binding IsUploading}"
+                                                    Background="Transparent"
+                                                    Foreground="{DynamicResource BondAccent}"
+                                                    VerticalAlignment="Bottom"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="2,0"
+                                                    CornerRadius="1" />
+                                    </Panel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 平铺视图：大厂网格「中图标」密度（单元格 104×120、间距 6、无卡片外观）。
+                         有缩略图 → 84×84 圆角贴满；没有 → 透明背景上直接画 44px 类型色图标，
+                         不再铺灰色底板（那是"破图占位"观感的来源）。 -->
+                    <!-- 平铺：卡片网格；外层 ScrollViewer 底部同样留 80 避免被操作条遮挡 -->
+                    <ScrollViewer x:Name="FileTileScroll" Grid.Row="1" IsVisible="{Binding IsTileView}"
+                                  ScrollChanged="OnFileListScrollChanged"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,0,68">
+                        <StackPanel>
+                        <!-- 上传中的虚拟卡：占一个正常单元格位置（104×136），排在最前；完成后换成真实行（task-42） -->
+                        <ItemsControl ItemsSource="{Binding UploadingRows}" Margin="8,6,8,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:UploadTaskItem">
+                                    <Border Width="104" Height="136" VerticalAlignment="Top"
+                                            Background="Transparent"
+                                            ToolTip.Tip="{Binding FileName}">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="取消上传" Click="OnVirtualUploadCancelClick" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <Grid RowDefinitions="84,Auto,Auto" HorizontalAlignment="Center">
+                                            <Border Grid.Row="0" Width="84" Height="84" CornerRadius="10"
+                                                    Background="{DynamicResource BondSurfaceAlt}"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Top">
+                                                <Panel Width="84" Height="84">
+                                                    <mi:MaterialIcon Kind="Upload" IconSize="26"
+                                                                     Foreground="{DynamicResource BondAccent}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     Margin="0,0,0,10" />
+                                                    <TextBlock Text="{Binding ProgressText}" FontSize="11"
+                                                               Foreground="{DynamicResource BondAccent}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Bottom"
+                                                               Margin="0,0,0,7" />
+                                                    <ProgressBar Height="3" Minimum="0" Maximum="1"
+                                                                 Value="{Binding Progress}"
+                                                                 Background="Transparent"
+                                                                 Foreground="{DynamicResource BondAccent}"
+                                                                 VerticalAlignment="Bottom"
+                                                                 HorizontalAlignment="Stretch"
+                                                                 CornerRadius="1" />
+                                                    <Button Classes="ghosticon" Width="20" Height="20" Padding="0"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            Margin="2"
+                                                            Click="OnVirtualUploadCancelClick"
+                                                            ToolTip.Tip="取消上传">
+                                                        <mi:MaterialIcon Kind="Close" IconSize="11" />
+                                                    </Button>
+                                                </Panel>
+                                            </Border>
+                                            <TextBlock Grid.Row="1" Text="{Binding FileName}" FontSize="12"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       HorizontalAlignment="Center" TextAlignment="Center"
+                                                       TextWrapping="Wrap" MaxLines="2"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Margin="0,4,0,0" />
+                                            <TextBlock Grid.Row="2" Text="{Binding StatusText}" Classes="meta"
+                                                       FontSize="11" HorizontalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl x:Name="TileList"
+                                      ItemsSource="{Binding View}"
+                                      Margin="8,6,8,0"
+                                      ContextRequested="OnRowContextRequested"
+                                      Loaded="OnTileListLoaded"
+                                      SizeChanged="OnTileListSizeChanged">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开" IsVisible="{Binding Selected.IsFolder}"
+                                          InputGesture="Enter"
+                                          Click="OnRowMenuOpen" />
+                                <MenuItem Header="下载" IsVisible="{Binding Selected.IsFile}"
+                                          InputGesture="Ctrl+D"
+                                          Click="OnRowMenuDownload" />
+                                <MenuItem Header="重命名" InputGesture="F2" Click="OnRowMenuRename" />
+                                <MenuItem Header="删除" InputGesture="Delete" Click="OnRowMenuDelete" />
+                                <Separator />
+                                <MenuItem Header="发送到设备" Tag="send" />
+                                <Separator />
+                                <MenuItem Header="创建分享链接" Click="OnRowMenuShare"
+                                          ToolTip.Tip="为单个文件或文件夹生成下载链接（文件夹下载为 ZIP；多选不支持）" />
+                                <MenuItem Header="转存到…" Click="OnRowMenuCopy"
+                                          ToolTip.Tip="服务端复制，不消耗下载流量；本期仅支持单个文件" />
+                                <MenuItem Header="移动到…" Click="OnRowMenuMove"
+                                          ToolTip.Tip="移动到当前空间的另一个目录（仅单选；多个请逐个操作）" />
+                                <MenuItem Header="新建文件夹" InputGesture="Ctrl+Shift+N"
+                                          Click="OnRowMenuNewFolder" />
+                            </ContextMenu>
+                        </ItemsControl.ContextMenu>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:NodeItem">
+                                <Border Width="104" Height="136" Padding="0" VerticalAlignment="Top"
+                                        Background="Transparent" ToolTip.Tip="{Binding TileTooltip}">
+                                    <Grid RowDefinitions="84,Auto,Auto" HorizontalAlignment="Center">
+                                        <!-- 缩略图框 84×84：选中/悬停反馈只画在这一层，
+                                             名称与副行不参与（避免"把名字部分也框住"） -->
+                                        <Border Grid.Row="0" Classes="tilethumb" Classes.selected="{Binding IsSelected}" Classes.newly="{Binding IsNewlyCreated}"
+                                                Width="84" Height="84"
+                                                HorizontalAlignment="Center" VerticalAlignment="Top">
+                                            <Panel Width="84" Height="84">
+                                                <!-- 有缩略图：等比裁切铺满 + 圆角裁剪；没有：透明背景画 44px 类型色图标 -->
+                                                <c:ThumbnailView Node="{Binding}" BoxWidth="84" BoxHeight="84"
+                                                                 Radius="10" FallbackIconSize="44" FallbackPlate="False"
+                                                                 RequestWidth="320"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center" />
+
+                                                <!-- 选中/悬停描边**叠在图片之上**：Border 的边框画在内容下面，
+                                                     真实缩略图会盖住它，所以单独一层 ring 露在上面 -->
+                                                <Border Classes="tilethumbring"
+                                                        Classes.selected="{Binding IsSelected}" Classes.newly="{Binding IsNewlyCreated}"
+                                                        Width="84" Height="84"
+                                                        CornerRadius="10"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        IsHitTestVisible="False" />
+
+                                                <!-- task-166：平铺卡 hover 按钮已取消（操作统一收进底部 SelectionBar / 右键菜单） -->
+
+                                                <!-- 上传中：缩略图底边 2px 真实进度条（不改变 104×120 单元格尺寸） -->
+                                                <ProgressBar Height="2" Minimum="0" Maximum="100"
+                                                            Value="{Binding UploadProgress}"
+                                                            IsVisible="{Binding IsUploading}"
+                                                            Background="Transparent"
+                                                            Foreground="{DynamicResource BondAccent}"
+                                                            VerticalAlignment="Bottom"
+                                                            HorizontalAlignment="Stretch"
+                                                            CornerRadius="1" />
+                                            </Panel>
+                                        </Border>
+
+                                        <!-- 名称：12.5px 单行居中，超长省略；选中只加粗，不加底色/描边 -->
+                                        <Grid Grid.Row="1" Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding Name}" Classes="tilename"
+                                                       Classes.selected="{Binding IsSelected}" Classes.newly="{Binding IsNewlyCreated}"
+                                                       FontSize="12.5"
+                                                       HorizontalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap" MaxLines="2"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding TileTooltip}"
+                                                       IsVisible="{Binding IsNotEditing}" />
+
+                                            <TextBox Text="{Binding EditName}" Classes="input"
+                                                     IsVisible="{Binding IsEditing}"
+                                                     Width="96" Height="22" MinHeight="22" FontSize="11"
+                                                     CornerRadius="6" Padding="5,0"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalContentAlignment="Center"
+                                                     AttachedToVisualTree="OnRenameBoxAttached"
+                                                     KeyDown="OnRenameBoxKeyDown"
+                                                     LostFocus="OnRenameBoxLostFocus"
+                                                     TextChanged="OnRenameTextChanged"
+                                                     ToolTip.Tip="Enter 保存 · Esc 取消" />
+                                        </Grid>
+
+                                        <!-- 副行：11px 居中「大小 · MM-dd HH:mm」，单行省略 -->
+                                        <Grid Grid.Row="2" Margin="0,1,0,0">
+                                            <TextBlock Text="{Binding TilePathSubline}" Classes="meta"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding TileTooltip}"
+                                                       IsVisible="{Binding !HasEditError}" />
+                                            <TextBlock Text="{Binding EditError}"
+                                                       FontSize="9.5" Foreground="{DynamicResource BondError}"
+                                                       HorizontalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                       ToolTip.Tip="{Binding EditError}"
+                                                       IsVisible="{Binding HasEditError}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 首屏骨架：加载中且没有任何数据 -->
+                    <StackPanel Grid.Row="1" IsVisible="{Binding ShowSkeleton}" Spacing="10"
+                                Margin="18,16" VerticalAlignment="Top">
+                        <Border Height="40" CornerRadius="9" Background="{DynamicResource BondSurfaceAlt}" Opacity="0.75" />
+                        <Border Height="40" CornerRadius="9" Background="{DynamicResource BondSurfaceAlt}" Opacity="0.6" />
+                        <Border Height="40" CornerRadius="9" Background="{DynamicResource BondSurfaceAlt}" Opacity="0.45" />
+                        <Border Height="40" CornerRadius="9" Background="{DynamicResource BondSurfaceAlt}" Opacity="0.3" />
+                    </StackPanel>
+
+                    <!-- 空状态：当前目录为空 -->
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="10" IsVisible="{Binding IsFolderEmpty}">
+                        <Border Width="56" Height="56" CornerRadius="28"
+                                Background="{DynamicResource BondSurfaceAlt}">
+                            <mi:MaterialIcon Kind="FolderOpen" IconSize="24"
+                                             Foreground="{DynamicResource BondTertiary}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding FolderEmptyTitle}" FontSize="13" FontWeight="Medium"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding FolderEmptyHint}"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                                   HorizontalAlignment="Center" />
+                        <Button Classes="soft" Command="{Binding UploadCommand}" Padding="14,6"
+                                HorizontalAlignment="Center" Margin="0,4,0,0">
+                            <TextBlock Text="上传文件" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 空状态：没有任何可用工作区（未连接 / 账号无工作区） -->
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="10" IsVisible="{Binding HasNoWorkspace}">
+                        <Border Width="56" Height="56" CornerRadius="28"
+                                Background="{DynamicResource BondSurfaceAlt}">
+                            <mi:MaterialIcon Kind="CloudOff" IconSize="24"
+                                             Foreground="{DynamicResource BondTertiary}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="还没有可用的空间" FontSize="13" FontWeight="Medium"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="检查网络后重试；个人空间会自动创建"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                                   HorizontalAlignment="Center" />
+                        <Button Classes="soft" Command="{Binding RefreshCommand}" Padding="14,6"
+                                HorizontalAlignment="Center" Margin="0,4,0,0"
+                                ToolTip.Tip="重新连接并拉取空间列表">
+                            <TextBlock Text="重新加载" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 空状态：搜索无结果（task-123：标题带关键词 + 一键清除） -->
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="10" IsVisible="{Binding IsSearchEmpty}" MaxWidth="420">
+                        <Border Width="56" Height="56" CornerRadius="28"
+                                Background="{DynamicResource BondSurfaceAlt}">
+                            <mi:MaterialIcon Kind="FileSearchOutline" IconSize="24"
+                                             Foreground="{DynamicResource BondTertiary}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding SearchEmptyTitle}" FontSize="13" FontWeight="Medium"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="换个关键词，或清空搜索框查看全部"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                                   HorizontalAlignment="Center" />
+                        <Button Classes="soft" Command="{Binding ClearSearchCommand}" Padding="14,6"
+                                HorizontalAlignment="Center" Margin="0,4,0,0"
+                                ToolTip.Tip="清空搜索并回到当前目录">
+                            <TextBlock Text="清除搜索" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 错误态：页面内提示条 + 重试（不静默） -->
+                    <Border Grid.Row="1" IsVisible="{Binding HasError}" VerticalAlignment="Top"
+                            HorizontalAlignment="Stretch" Margin="12,8,12,0" Padding="10,8"
+                            CornerRadius="8"
+                            Background="{DynamicResource BondSurfaceAlt}"
+                            BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="14"
+                                             Foreground="{DynamicResource BondError}"
+                                             VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding ErrorText}" FontSize="11.5"
+                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                       Margin="8,0,10,0" VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="soft" Command="{Binding RefreshCommand}"
+                                    Padding="14,0" MinHeight="32" ToolTip.Tip="重新加载文件列表">
+                                <TextBlock Text="重试" FontSize="11.5" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- task-123：搜索失败态（后端原文 + 重试，不静默、不伪造结果） -->
+                    <Border Grid.Row="1" IsVisible="{Binding HasSearchError}" VerticalAlignment="Top"
+                            HorizontalAlignment="Stretch" Margin="12,8,12,0" Padding="10,8"
+                            CornerRadius="8"
+                            Background="{DynamicResource BondSurfaceAlt}"
+                            BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="14"
+                                             Foreground="{DynamicResource BondError}"
+                                             VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding SearchErrorText}" FontSize="11.5"
+                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                       Margin="8,0,10,0" VerticalAlignment="Center"
+                                       ToolTip.Tip="{Binding SearchErrorText}" />
+                            <Button Grid.Column="2" Classes="soft" Command="{Binding RetrySearchCommand}"
+                                    IsVisible="{Binding SearchErrorRetryable}"
+                                    Padding="14,0" MinHeight="32" Margin="0,0,6,0"
+                                    ToolTip.Tip="重新搜索当前关键词">
+                                <TextBlock Text="重试" FontSize="11.5" />
+                            </Button>
+                            <Button Grid.Column="3" Classes="soft" Command="{Binding ClearSearchCommand}"
+                                    Padding="14,0" MinHeight="32" ToolTip.Tip="清空搜索回到当前目录">
+                                <TextBlock Text="清除" FontSize="11.5" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- task-123：搜索结果分页（滚动到底自动续页，也保留按钮方便鼠标/键盘） -->
+                    <Border Grid.Row="1" IsVisible="{Binding ShowSearchFooter}"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                            Margin="0,0,0,16" Padding="12,8" CornerRadius="10"
+                            Background="{DynamicResource BondSurface}"
+                            BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                            BoxShadow="0 6 18 0 #22000000">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SearchSummary}" Classes="meta"
+                                       VerticalAlignment="Center" />
+                            <Button Classes="soft" Command="{Binding LoadMoreSearchCommand}"
+                                    Padding="12,5" MinHeight="32"
+                                    IsVisible="{Binding SearchHasMore}"
+                                    ToolTip.Tip="加载下一页搜索结果">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="加载更多" FontSize="11.5" />
+                                    <mi:MaterialIcon Kind="ChevronDown" IconSize="12"
+                                                     VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="已全部显示" FontSize="11"
+                                       Foreground="{DynamicResource BondTertiary}"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding !SearchHasMore}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 刷新进度条（放在列表之后，保证绘制在最上层） -->
+                    <ProgressBar Grid.Row="1" Height="2" Minimum="0" Maximum="100"
+                                 IsIndeterminate="True" VerticalAlignment="Top"
+                                 IsVisible="{Binding IsLoading}" />
+
+                    <!-- ===== 底部状态栏：只保留文件数 / 选择提示 =====
+                         下载 / 重命名 / 删除 / 更多 已收进浮在主窗口内容区底部的 SelectionBar（统一样式，避免双入口） -->
+                    <Panel Grid.Row="2" IsVisible="{Binding !HasSelection}">
+                        <Border Classes="rule" Margin="0" VerticalAlignment="Top" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="14,8,10,8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Classes="meta" Text="{Binding SelectionText}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="正在重命名：Enter 保存 · Esc 取消"
+                                       FontSize="10.5" Foreground="{DynamicResource BondAccent}"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding IsRenaming}" />
+                        </StackPanel>
+                    </Panel>
+                </Grid>
+            </suki:GlassCard>
+
+            <!-- 右侧信息栏 -->
+            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12">
+
+                    <!-- 存储 -->
+                    <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="h2" Text="存储空间" />
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="metric" Text="{Binding Quota.UsedText}" />
+                                <TextBlock Classes="meta" Text="{Binding QuotaCaption}"
+                                           ToolTip.Tip="{Binding QuotaCaption}" />
+                            </StackPanel>
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Quota.Ratio}"
+                                         IsVisible="{Binding ShowQuotaBar}" />
+                            <Button Classes="soft" HorizontalAlignment="Stretch" Padding="10,6" FontSize="12"
+                                    IsEnabled="{Binding ShowQuotaBar}"
+                                    ToolTip.Tip="团队工作区配额由管理员在服务端调整">
+                                <TextBlock Text="管理空间" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </suki:GlassCard>
+
+                    <!-- 最近 -->
+                    <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="h2" Text="最近使用" />
+                                <TextBlock Grid.Column="1" Classes="meta" Text="今天" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding Recent}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:NodeItem">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Height="34"
+                                              ToolTip.Tip="{Binding Name}">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" IconSize="15"
+                                                             Foreground="{Binding IconBrush}"
+                                                             VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" Classes="meta"
+                                                       Foreground="{DynamicResource BondSecondary}"
+                                                       Margin="9,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding SizeText}" Classes="meta"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </suki:GlassCard>
+
+                    <!-- 快捷操作 -->
+                    <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="h2" Text="快捷操作" />
+                            <Button Classes="ghosticon" HorizontalAlignment="Stretch" Padding="10,8"
+                                    Command="{Binding UploadCommand}" ToolTip.Tip="上传文件到当前目录">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <mi:MaterialIcon Kind="Upload" IconSize="13"
+                                                     Foreground="{DynamicResource BondAccent}" />
+                                    <TextBlock Grid.Column="1" Text="上传文件" FontSize="12"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                            <Button Classes="ghosticon" HorizontalAlignment="Stretch" Padding="10,8"
+                                    Command="{Binding OpenTrashCommand}"
+                                    ToolTip.Tip="查看并还原已删除的文件（跟随当前空间）">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <mi:MaterialIcon Kind="DeleteOutline" IconSize="13"
+                                                     Foreground="{DynamicResource BondSecondary}" />
+                                    <TextBlock Grid.Column="1" Text="回收站 · 还原文件" FontSize="12"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                            <Button Classes="ghosticon" HorizontalAlignment="Stretch" Padding="10,8"
+                                    Command="{Binding RefreshCommand}" ToolTip.Tip="重新加载当前目录">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <mi:MaterialIcon Kind="Refresh" IconSize="13"
+                                                     Foreground="{DynamicResource BondSecondary}" />
+                                    <TextBlock Grid.Column="1" Text="刷新列表" FontSize="12"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                            <Button Classes="ghosticon" HorizontalAlignment="Stretch" Padding="10,8"
+                                    Click="OnOpenDataFolderClick" ToolTip.Tip="打开 %LocalAppData%\Bond">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <mi:MaterialIcon Kind="FolderOpen" IconSize="13"
+                                                     Foreground="{DynamicResource BondSecondary}" />
+                                    <TextBlock Grid.Column="1" Text="打开数据目录" FontSize="12"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+                    </suki:GlassCard>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- 选中操作条：浮在文件列表底部居中（距底 24），淡入 + 上移 8px 由控件自身完成 -->
+            <c:SelectionBar Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                            Margin="0,0,0,24" ZIndex="30" />
+        </Grid>
+
+        <!-- ===== 我的分享：右侧滑出面板 ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsSharesOpen}" ZIndex="60">
+            <Border Background="#33000000" />
+            <Border Width="820" HorizontalAlignment="Right" Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1,0,0,0"
+                    BoxShadow="0 12 32 0 #26000000">
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="18,16,18,14" RowSpacing="8">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Classes="h2" Text="我的分享" />
+                                <TextBlock Classes="meta" FontSize="11" VerticalAlignment="Center"
+                                           Text="{Binding SharesCountText}" />
+                            </StackPanel>
+                            <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                       Text="可编辑提取码、有效期与下载上限；链接对外匿名可下载，撤销后立即失效" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <Button Classes="ghosticon" Command="{Binding RefreshSharesCommand}"
+                                    AutomationProperties.Name="刷新分享列表"
+                                    Padding="6" MinWidth="32" MinHeight="32" ToolTip.Tip="刷新">
+                                <mi:MaterialIcon Kind="Refresh" IconSize="14" />
+                            </Button>
+                            <Button Classes="ghosticon" Command="{Binding CloseSharesCommand}"
+                                    AutomationProperties.Name="关闭分享面板"
+                                    Padding="6" MinWidth="32" MinHeight="32" ToolTip.Tip="关闭">
+                                <mi:MaterialIcon Kind="Close" IconSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 状态筛选 + 文件名搜索（task-164，300ms 防抖在 VM） -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                        <ItemsControl ItemsSource="{Binding ShareFilters}" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShareFilterChip">
+                                    <Button Classes="soft sharechip" Classes.active="{Binding IsActive}"
+                                            Content="{Binding Label}" Padding="10,4" MinHeight="32"
+                                            Command="{Binding $parent[ItemsControl].((vm:FilesPageViewModel)DataContext).SetShareFilterCommand}"
+                                            CommandParameter="{Binding ValueText}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBox Grid.Column="1" Width="220" Height="32" MinHeight="32"
+                                 PlaceholderText="搜索文件名" Text="{Binding ShareSearch}" />
+                    </Grid>
+
+                    <!-- 列头（与行模板列宽一一对应，行高 40） -->
+                    <Grid Grid.Row="2" ColumnDefinitions="*,64,64,88,128,104,104,88"
+                          Margin="10,2,10,0">
+                        <TextBlock Classes="meta" FontSize="10.5" Text="文件名" />
+                        <TextBlock Grid.Column="1" Classes="meta" FontSize="10.5" Text="状态" />
+                        <TextBlock Grid.Column="2" Classes="meta" FontSize="10.5" Text="提取码" />
+                        <TextBlock Grid.Column="3" Classes="meta" FontSize="10.5" Text="下载" />
+                        <TextBlock Grid.Column="4" Classes="meta" FontSize="10.5" Text="有效期" />
+                        <TextBlock Grid.Column="5" Classes="meta" FontSize="10.5" Text="创建时间" />
+                        <TextBlock Grid.Column="6" Classes="meta" FontSize="10.5" Text="最后访问" />
+                        <TextBlock Grid.Column="7" Classes="meta" FontSize="10.5" Text="操作"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <!-- 加载态 -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Spacing="8" IsVisible="{Binding IsSharesLoading}">
+                        <TextBlock Classes="meta" Text="加载分享记录…" />
+                    </StackPanel>
+
+                    <!-- 失败态 -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Center" Spacing="8"
+                                IsVisible="{Binding ShowSharesError}">
+                        <TextBlock Classes="body" Text="{Binding SharesError}" TextWrapping="Wrap" />
+                        <Button Classes="soft" HorizontalAlignment="Left"
+                                Command="{Binding RefreshSharesCommand}" Content="重试" />
+                    </StackPanel>
+
+                    <!-- 空态 -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Spacing="6" IsVisible="{Binding ShowSharesEmpty}">
+                        <TextBlock Classes="meta" Text="还没有分享记录" HorizontalAlignment="Center" />
+                        <TextBlock Classes="meta" FontSize="11" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="在文件或文件夹上右键即可创建分享链接（文件夹下载为 ZIP）" />
+                    </StackPanel>
+
+                    <!-- 筛选/搜索无结果 -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Spacing="6" IsVisible="{Binding ShowSharesFilterEmpty}">
+                        <TextBlock Classes="meta" Text="当前筛选没有匹配的分享" HorizontalAlignment="Center" />
+                        <TextBlock Classes="meta" FontSize="11" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="换个状态或清空搜索关键词再试" />
+                    </StackPanel>
+
+                    <!-- 分享列表 -->
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
+                        <ItemsControl ItemsSource="{Binding FilteredShares}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ShareLink">
+                                    <Border Classes="filerow" MinHeight="40" Padding="10,2" Margin="0,1">
+                                        <Grid ColumnDefinitions="*,64,64,88,128,104,104,88"
+                                              VerticalAlignment="Center">
+                                        <Grid ColumnDefinitions="Auto,Auto,*"
+                                              VerticalAlignment="Center">
+                                            <!-- task-183：文件夹分享徽标（ZIP 下载） -->
+                                            <Border Background="{DynamicResource BondAccentFill}"
+                                                    CornerRadius="6" Padding="5,1"
+                                                    VerticalAlignment="Center"
+                                                    IsVisible="{Binding IsDirectory}"
+                                                    ToolTip.Tip="文件夹分享：匿名下载为 ZIP">
+                                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                                    <mi:MaterialIcon Kind="FolderOutline" IconSize="10"
+                                                                     Foreground="{DynamicResource BondAccentDeep}" />
+                                                    <TextBlock Text="文件夹" FontSize="9.5"
+                                                               Foreground="{DynamicResource BondAccentDeep}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Grid.Column="2" Margin="6,0,4,0"
+                                                       Text="{Binding FileName}" Classes="body" FontSize="12.5"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding FileName}" />
+                                        </Grid>
+                                            <TextBlock Grid.Column="1" Text="正常" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource BondAccent}"
+                                                       IsVisible="{Binding IsActive}" />
+                                            <TextBlock Grid.Column="1" Text="已过期" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource BondTextMuted}"
+                                                       IsVisible="{Binding IsExpired}" />
+                                            <TextBlock Grid.Column="1" Text="已撤销" FontSize="11"
+                                                       VerticalAlignment="Center" Foreground="#C0392B"
+                                                       IsVisible="{Binding IsRevoked}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding CodeText}" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource BondTextMuted}" />
+                                            <TextBlock Grid.Column="3" Text="{Binding DownloadText}" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource BondTextMuted}" />
+                                            <TextBlock Grid.Column="4" Text="{Binding ExpiresBadgeText}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding ExpiresBadgeText}"
+                                                       Foreground="{DynamicResource BondTextMuted}" />
+                                            <TextBlock Grid.Column="5" Text="{Binding CreatedText}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding CreatedText}"
+                                                       Foreground="{DynamicResource BondTextMuted}" />
+                                            <TextBlock Grid.Column="6" Text="{Binding LastAccessText}" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip.Tip="{Binding LastAccessText}"
+                                                       Foreground="{DynamicResource BondTertiary}" />
+                                            <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="2"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <Button Classes="ghosticon" Padding="6,2" MinHeight="28"
+                                                        Command="{ReflectionBinding $parent[UserControl].DataContext.CopyShareUrlCommand}"
+                                                        CommandParameter="{Binding Url}"
+                                                        AutomationProperties.Name="复制分享链接"
+                                                        ToolTip.Tip="复制链接">
+                                                    <TextBlock Text="复制" FontSize="10.5" />
+                                                </Button>
+                                                <Button Classes="ghosticon" Padding="6,2" MinHeight="28"
+                                                        Command="{ReflectionBinding $parent[UserControl].DataContext.OpenEditShareCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="编辑这条分享"
+                                                        IsEnabled="{Binding IsActive}"
+                                                        ToolTip.Tip="编辑提取码 / 有效期 / 下载上限">
+                                                    <TextBlock Text="编辑" FontSize="10.5" />
+                                                </Button>
+                                                <Button Classes="ghosticon" Padding="6,2" MinHeight="28"
+                                                        Command="{ReflectionBinding $parent[UserControl].DataContext.RequestRevokeCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="撤销分享"
+                                                        IsEnabled="{Binding IsActive}"
+                                                        ToolTip.Tip="撤销这条分享链接">
+                                                    <TextBlock Text="撤销" FontSize="10.5"
+                                                               Foreground="#C0392B" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <TextBlock Grid.Row="4" Classes="meta" FontSize="10.5" Margin="0,4,0,0"
+                               Foreground="{DynamicResource BondTertiary}"
+                               Text="匿名下载链接仅在有效期内可访问；撤销后立即失效且不可恢复" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ===== 创建分享链接：小对话框 ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsCreateShareOpen}" ZIndex="70">
+            <Border Background="#4D000000" />
+            <Border Width="430" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="16"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,18,20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="h2" Text="{Binding ShareDialogTitle}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="ghosticon" Padding="6" MinWidth="28"
+                                MinHeight="28" Command="{Binding CloseCreateShareCommand}"
+                                ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="9" Padding="10,8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="{Binding ShareTarget.Icon}" IconSize="15"
+                                             VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ShareTarget.Name}" Classes="body"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ShareTargetMetaText}" Classes="meta"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- task-183：文件夹分享说明（匿名下载为流式 ZIP） -->
+                    <Border IsVisible="{Binding IsShareFolder}"
+                            Background="{DynamicResource BondAccentFill}"
+                            BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                            CornerRadius="8" Padding="10,7">
+                        <StackPanel Spacing="3">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <mi:MaterialIcon Kind="FolderOutline" IconSize="13"
+                                                 Foreground="{DynamicResource BondAccentDeep}"
+                                                 VerticalAlignment="Center" />
+                                <TextBlock Text="文件夹分享（ZIP）" FontSize="11.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BondAccentDeep}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ShareZipHint}" FontSize="10.5" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondAccentDeep}" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Classes="meta" Text="有效期" />
+                        <ComboBox Width="200" Height="32" MinHeight="32" HorizontalAlignment="Left"
+                                  ItemsSource="{Binding ShareExpiryOptions}"
+                                  SelectedItem="{Binding ShareExpiry}"
+                                  ToolTip.Tip="分享链接的有效期">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShareExpiryOption">
+                                    <TextBlock Text="{Binding Label}" FontSize="12" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- 永久链接：服务端要求 maxDownloads > 0，客户端必填（默认 100） -->
+                    <StackPanel Spacing="5" IsVisible="{Binding IsSharePermanent}">
+                        <TextBlock Classes="meta" Text="下载次数上限（永久链接必填）" />
+                        <TextBox Text="{Binding ShareMaxDownloads}" Width="140" Height="32" MinHeight="32"
+                                 HorizontalAlignment="Left" MaxLength="6"
+                                 PlaceholderText="默认 100"
+                                 ToolTip.Tip="永久链接必须设置下载次数上限；超过后链接自动失效" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="{DynamicResource BondTertiary}"
+                                   Text="永久链接不再随时间过期，但仍受下载次数上限约束（服务端要求 &gt; 0）。" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <!-- 自绘勾选框（2026-10-29）：主题 CheckBox 勾号不渲染，见 Typography.axaml .bondcheck -->
+                        <ToggleButton Classes="bondcheck" IsChecked="{Binding ShareRequiresCode}"
+                                      AutomationProperties.Name="需要提取码"
+                                      ToolTip.Tip="开启后，下载者必须输入正确提取码才能下载">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Border Classes="checkbox">
+                                    <mi:MaterialIcon Classes="checkglyph" Kind="Check" IconSize="12"
+                                                     Foreground="{DynamicResource BondOnAccent}"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="需要提取码" FontSize="12.5" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                        <TextBox Text="{Binding ShareCode}" Width="200" Height="32" MinHeight="32"
+                                 HorizontalAlignment="Left" MaxLength="8"
+                                 PlaceholderText="4–8 位字母或数字"
+                                 IsVisible="{Binding ShareRequiresCode}" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="#C0392B" TextWrapping="Wrap"
+                                   Text="{Binding CreateShareCodeError}"
+                                   IsVisible="{Binding CreateShareCodeError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding CreateShareError}" Classes="meta"
+                               Foreground="#C0392B" TextWrapping="Wrap"
+                               IsVisible="{Binding CreateShareError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CloseCreateShareCommand}" />
+                        <Button Classes="primary" Content="创建" Command="{Binding CreateShareCommand}"
+                                IsEnabled="{Binding CanSubmitCreateShare}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 创建成功：结果卡片 ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding CreatedShare, Converter={x:Static conv:ObjectConverters.IsNotNull}}" ZIndex="80">
+            <Border Background="#4D000000" />
+            <Border Width="460" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="16"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,18,20,16" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" IconSize="17"
+                                         Foreground="{DynamicResource BondAccent}"
+                                         VerticalAlignment="Center" />
+                        <TextBlock Classes="h2" Text="分享链接已创建" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <TextBox Text="{Binding CreatedShare.Url}" IsReadOnly="True" Height="34"
+                             MinHeight="34" FontSize="12"
+                             ToolTip.Tip="只读链接，可全选复制" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                IsVisible="{Binding CreatedShare.RequiresCode}">
+                        <TextBlock Classes="meta" Text="提取码" VerticalAlignment="Center" />
+                        <Border Background="{DynamicResource BondAccentSoft}" CornerRadius="6"
+                                Padding="8,3">
+                            <!-- 服务端不回传明码，这里展示用户刚创建的码（CreatedShareCode） -->
+                            <TextBlock Text="{Binding CreatedShareCode}" FontWeight="SemiBold"
+                                       FontSize="12.5" Foreground="{DynamicResource BondAccent}" />
+                        </Border>
+                        <TextBlock Classes="meta" FontSize="10.5" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="请自行记住并转告下载者，关闭后不再显示" />
+                    </StackPanel>
+
+                    <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                               Text="{Binding CreatedShare.ExpiresBadgeText}" />
+
+                    <!-- task-183：文件夹分享的成功卡提示（下载为 ZIP） -->
+                    <Border IsVisible="{Binding CreatedShare.IsDirectory}"
+                            Background="{DynamicResource BondAccentFill}"
+                            BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                            CornerRadius="8" Padding="10,7">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="下载全部（ZIP）" FontSize="11.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BondAccentDeep}" />
+                            <TextBlock Text="文件夹分享：匿名落地页列出首层子项，下载为流式 ZIP；实际体积以下行结果为准。"
+                                       FontSize="10.5" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondAccentDeep}" />
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="完成"
+                                Command="{Binding CloseCreateShareCommand}" />
+                        <Button Classes="soft" Content="继续管理"
+                                Command="{Binding ManageCreatedShareCommand}"
+                                ToolTip.Tip="打开「我的分享」并定位到这条链接" />
+                        <Button Classes="soft"
+                                Command="{Binding CopyShareUrlCommand}"
+                                CommandParameter="{Binding CreatedShare.Url}"
+                                Content="复制链接" />
+                        <Button Classes="primary"
+                                Command="{Binding OpenShareUrlCommand}"
+                                CommandParameter="{Binding CreatedShare.Url}"
+                                Content="在浏览器打开" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== task-166：移动到…：当前空间内的目标目录选择（服务端 /move，仅单个条目） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsMoveOpen}" ZIndex="86">
+            <Border Background="#4D000000" />
+            <Border Width="470" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="h2" Text="移动到…" />
+                            <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding MoveSource.Name, StringFormat='源：{0}（同空间内移动，不复制、不消耗流量）'}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding CancelMoveCommand}"
+                                ToolTip.Tip="取消">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="5">
+                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                            <TextBlock Classes="meta" Text="目标目录" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Margin="8,0" FontSize="11.5"
+                                       Text="{Binding MovePathText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="soft" Content="上一级"
+                                    Command="{Binding MoveGoUpCommand}"
+                                    IsEnabled="{Binding CanMoveGoUp}" Padding="10,4" />
+                        </Grid>
+                        <Border BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="9"
+                                Height="150" Background="{DynamicResource BondSurfaceAlt}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <ItemsControl ItemsSource="{Binding MoveFolders}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:NodeItem">
+                                            <Button Classes="soft" HorizontalAlignment="Stretch" Padding="8,5"
+                                                    Click="OnMoveFolderClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <mi:MaterialIcon Kind="FolderOutline" IconSize="14"
+                                                                     Foreground="{DynamicResource BondAccent}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                   Text="{Binding MoveHint}"
+                                   IsVisible="{Binding MoveHint, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding MoveError}" Classes="meta" Foreground="#C0392B"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding MoveError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelMoveCommand}" />
+                        <Button Classes="primary" Content="移动到此" Command="{Binding SubmitMoveCommand}"
+                                IsEnabled="{Binding !IsMoving}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== task-4：上传到…：先选目标目录，再选本地文件（上传任务的 ParentPath 指向这里） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsUploadTargetOpen}" ZIndex="87">
+            <Border Background="#4D000000" />
+            <Border Width="470" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="h2" Text="上传到…" />
+                            <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding UploadTargetSpaceText}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding CancelUploadTargetCommand}"
+                                ToolTip.Tip="取消">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="5">
+                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                            <TextBlock Classes="meta" Text="目标目录" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Margin="8,0" FontSize="11.5"
+                                       Text="{Binding UploadTargetPathText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="soft" Content="上一级"
+                                    Command="{Binding UploadTargetGoUpCommand}"
+                                    IsEnabled="{Binding CanUploadTargetGoUp}" Padding="10,4" />
+                        </Grid>
+                        <Border BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="9"
+                                Height="150" Background="{DynamicResource BondSurfaceAlt}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <ItemsControl ItemsSource="{Binding UploadFolders}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:NodeItem">
+                                            <Button Classes="soft" HorizontalAlignment="Stretch" Padding="8,5"
+                                                    Click="OnUploadTargetFolderClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <mi:MaterialIcon Kind="FolderOutline" IconSize="14"
+                                                                     Foreground="{DynamicResource BondAccent}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                   Text="{Binding UploadTargetHint}"
+                                   IsVisible="{Binding UploadTargetHint, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding UploadTargetError}" Classes="meta" Foreground="#C0392B"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding UploadTargetError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelUploadTargetCommand}" />
+                        <Button Classes="primary" Content="选择文件并上传" Command="{Binding SubmitUploadTargetCommand}"
+                                AutomationProperties.Name="选择文件并上传"
+                                IsEnabled="{Binding !IsUploadTargetBusy}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 转存到…：目标空间 → 目录 → 文件名（task-105，服务端复制） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsCopyOpen}" ZIndex="85">
+            <Border Background="#4D000000" />
+            <Border Width="470" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="h2" Text="转存到…" />
+                            <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                       Text="{Binding CopySource.Name, StringFormat='源文件：{0}（服务端复制，不消耗下载流量）'}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding CancelCopyCommand}"
+                                ToolTip.Tip="取消">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Classes="meta" Text="目标空间" />
+                        <ComboBox Width="300" Height="32" MinHeight="32" HorizontalAlignment="Left"
+                                  ItemsSource="{Binding CopySpaces}"
+                                  SelectedItem="{Binding CopySpace}"
+                                  SelectionChanged="OnCopySpaceChanged"
+                                  ToolTip.Tip="我的空间 + 我加入的工作区；无写入权限时由服务端返回真实错误">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:FileSpace">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="{Binding Icon}" IconSize="13" />
+                                        <TextBlock Text="{Binding Name}" FontSize="12" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                            <TextBlock Classes="meta" Text="目标目录" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Margin="8,0" FontSize="11.5"
+                                       Text="{Binding CopyPathText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="2" Classes="soft" Content="上一级"
+                                    Command="{Binding CopyGoUpCommand}"
+                                    IsEnabled="{Binding CanCopyGoUp}" Padding="10,4" />
+                        </Grid>
+                        <Border BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" CornerRadius="9"
+                                Height="140" Background="{DynamicResource BondSurfaceAlt}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                <ItemsControl ItemsSource="{Binding CopyFolders}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:NodeItem">
+                                            <Button Classes="soft" HorizontalAlignment="Stretch" Padding="8,5"
+                                                    Click="OnCopyFolderClick">
+                                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                                    <mi:MaterialIcon Kind="FolderOutline" IconSize="14"
+                                                                     Foreground="{DynamicResource BondAccent}" />
+                                                    <TextBlock Text="{Binding Name}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                   Text="{Binding CopyHint}"
+                                   IsVisible="{Binding CopyHint, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="5">
+                        <TextBlock Classes="meta" Text="文件名（可修改）" />
+                        <TextBox Text="{Binding CopyNewName}" Height="34" MinHeight="34" FontSize="12.5" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding CopyError}" Classes="meta" Foreground="#C0392B"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding CopyError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelCopyCommand}" />
+                        <Button Classes="primary" Content="转存" Command="{Binding SubmitCopyCommand}"
+                                IsEnabled="{Binding !IsCopying}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 编辑分享（task-164 壳；PATCH 契约未上线前保存禁用） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsEditShareOpen}" ZIndex="75">
+            <Border Background="#4D000000" />
+            <Border Width="520" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="16"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,18,20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="h2" Text="编辑分享" />
+                            <TextBlock Classes="meta" FontSize="11" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding EditShare.FileName}"
+                                       Text="{Binding EditShare.FileName, StringFormat='名称：{0}'}" />
+                            <!-- task-183：文件夹分享编辑说明 -->
+                            <TextBlock Classes="meta" FontSize="10.5"
+                                       Foreground="{DynamicResource BondAccent}"
+                                       Text="文件夹分享：下载为流式 ZIP；编辑提取码/有效期/次数与文件分享一致。"
+                                       IsVisible="{Binding EditShare.IsDirectory}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Padding="6" MinWidth="28"
+                                MinHeight="28" Command="{Binding CloseEditShareCommand}"
+                                AutomationProperties.Name="关闭编辑" ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 提取码：三态单选 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="提取码" />
+                        <StackPanel Spacing="2">
+                            <RadioButton GroupName="share-code-mode" Content="保持现状（不修改）"
+                                         AutomationProperties.Name="提取码-保持现状"
+                                         IsChecked="{Binding EditCodeKeep, Mode=TwoWay}" />
+                            <RadioButton GroupName="share-code-mode" Content="取消提取码（链接变为公开）"
+                                         AutomationProperties.Name="提取码-取消"
+                                         IsChecked="{Binding EditCodeRemove, Mode=TwoWay}" />
+                            <RadioButton GroupName="share-code-mode" Content="设置新提取码"
+                                         AutomationProperties.Name="提取码-设置新码"
+                                         IsChecked="{Binding EditCodeReplace, Mode=TwoWay}" />
+                        </StackPanel>
+                        <TextBox Text="{Binding EditShareCode}" IsVisible="{Binding ShowEditCodeInput}"
+                                 AutomationProperties.Name="新提取码"
+                                 MaxLength="8" Width="200" Height="32" MinHeight="32"
+                                 HorizontalAlignment="Left" PlaceholderText="4–8 位字母或数字" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="#C0392B" TextWrapping="Wrap"
+                                   Text="{Binding EditShareCodeError}"
+                                   IsVisible="{Binding EditShareCodeError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <!-- 有效期 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="有效期" />
+                        <ComboBox ItemsSource="{Binding ShareExpiryOptions}"
+                                  SelectedItem="{Binding EditShareExpiry}"
+                                  AutomationProperties.Name="编辑有效期"
+                                  Width="160" Height="32" MinHeight="32" HorizontalAlignment="Left">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShareExpiryOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Classes="meta" FontSize="10.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="「永久」可能需要当前档位支持；保存失败会原样显示后端提示" />
+                    </StackPanel>
+
+                    <!-- 下载次数上限 -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="下载次数上限" />
+                        <TextBox Text="{Binding EditShareMaxDownloads}" Width="160" Height="32"
+                                 AutomationProperties.Name="编辑下载上限"
+                                 MinHeight="32" HorizontalAlignment="Left" PlaceholderText="留空 = 不限制" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="#C0392B" TextWrapping="Wrap"
+                                   Text="{Binding EditShareMaxDownloadsError}"
+                                   IsVisible="{Binding EditShareMaxDownloadsError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                        <TextBlock Classes="meta" FontSize="10.5"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="{Binding EditShare.DownloadText, StringFormat='当前已下载：{0}'}" />
+                    </StackPanel>
+
+                    <!-- 契约未上线时的兜底说明（task-163 上线后默认隐藏） -->
+                    <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8" Padding="10,7"
+                            IsVisible="{Binding ShowShareEditUnavailable}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="InformationOutline" IconSize="13"
+                                             Foreground="{DynamicResource BondTextMuted}" />
+                            <TextBlock Classes="meta" FontSize="11" TextWrapping="Wrap"
+                                       Text="{Binding ShareEditUnavailableHint}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Classes="meta" FontSize="11" Foreground="#C0392B" TextWrapping="Wrap"
+                               Text="{Binding EditShareError}"
+                               IsVisible="{Binding EditShareError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CloseEditShareCommand}" />
+                        <Button Classes="primary" Content="保存修改" MinHeight="32"
+                                AutomationProperties.Name="保存修改分享"
+                                Command="{Binding SaveShareEditCommand}"
+                                IsEnabled="{Binding CanSaveShareEdit}"
+                                ToolTip.Tip="{Binding ShareEditUnavailableHint}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== 撤销二次确认 ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding PendingRevoke, Converter={x:Static conv:ObjectConverters.IsNotNull}}" ZIndex="90">
+            <Border Background="#4D000000" />
+            <Border Width="380" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,16" Spacing="10">
+                    <TextBlock Classes="h2" Text="撤销分享链接？" />
+                    <TextBlock Classes="meta" TextWrapping="Wrap"
+                               Text="{Binding PendingRevoke.FileName, StringFormat='「{0}」的链接将立即失效，已打开页面的人也无法继续下载。'}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelRevokeCommand}"
+                                AutomationProperties.Name="取消撤销" />
+                        <Button Classes="primary" Content="撤销" Command="{Binding ConfirmRevokeCommand}"
+                                AutomationProperties.Name="确认撤销" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+        <!-- ===== 回收站：页面内切换（面包屑 我的文件 › 回收站，不新开窗口） ===== -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsTrashOpen}" ZIndex="55"
+              Background="{DynamicResource BondBg}">
+            <Border Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                    BorderThickness="1" CornerRadius="12" Margin="0,6,0,0">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16,12,16,12">
+
+                    <!-- 面包屑式切换 + 保留说明 + 刷新 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Classes="ghosticon" Padding="10,3" MinWidth="0" MinHeight="32"
+                                    AutomationProperties.Name="返回我的文件"
+                                    Command="{Binding CloseTrashCommand}" ToolTip.Tip="返回我的文件">
+                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                    <mi:MaterialIcon Kind="ChevronLeft" IconSize="12" />
+                                    <TextBlock Text="我的文件" FontSize="12.5" FontWeight="Medium"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="/" Classes="meta" FontSize="11" VerticalAlignment="Center" />
+                            <TextBlock Text="回收站" FontSize="12.5" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <!-- task-4：回收站跟随当前空间（个人空间 / 团队工作区各有自己的回收站） -->
+                            <Border Background="{DynamicResource BondAccentSoft}" CornerRadius="6"
+                                    Padding="7,2" VerticalAlignment="Center"
+                                    ToolTip.Tip="{Binding TrashSpaceHint}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <mi:MaterialIcon Kind="{Binding SpaceIcon}" IconSize="10"
+                                                     Foreground="{DynamicResource BondAccent}"
+                                                     VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding TrashSpaceCaption}" FontSize="10.5"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource BondAccent}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Classes="meta" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"
+                                       IsVisible="{Binding HasTrashRetentionNote}"
+                                       Text="{Binding TrashRetentionText}"
+                                       ToolTip.Tip="保留时长由账号档位决定；到期自动清理，软删除即释放配额" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <Button Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                                    AutomationProperties.Name="回收站切换列表平铺视图"
+                                    Command="{Binding ToggleViewCommand}" ToolTip.Tip="{Binding ViewToggleTip}">
+                                <mi:MaterialIcon Kind="{Binding ViewToggleIcon}" IconSize="14" />
+                            </Button>
+                            <Button Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                                    Command="{Binding RefreshTrashCommand}" ToolTip.Tip="刷新回收站">
+                                <mi:MaterialIcon Kind="Refresh" IconSize="14" />
+                            </Button>
+                            <Button Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                                    Command="{Binding CloseTrashCommand}" ToolTip.Tip="关闭回收站">
+                                <mi:MaterialIcon Kind="Close" IconSize="14" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 结果横幅（成功/部分失败逐条原因） -->
+                    <Border Grid.Row="1" IsVisible="{Binding ShowTrashResult}"
+                            Background="{DynamicResource BondAccentSoft}" CornerRadius="8" Padding="10,6"
+                            Margin="0,0,0,8">
+                        <TextBlock Classes="meta" FontSize="11" TextWrapping="Wrap"
+                                   Text="{Binding TrashResult}" />
+                    </Border>
+
+                    <!-- 加载中（保留列表占位，不伪造数据） -->
+                    <ProgressBar Grid.Row="1" IsIndeterminate="True" Height="3" Margin="0,0,0,8"
+                                 IsVisible="{Binding IsTrashLoading}" />
+
+                    <!-- 失败态：人话 + 重试（与空态严格分离） -->
+                    <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
+                                IsVisible="{Binding ShowTrashError}">
+                        <TextBlock Classes="body" Text="{Binding TrashError}" TextWrapping="Wrap"
+                                   MaxWidth="440" HorizontalAlignment="Center" />
+                        <Button Classes="soft" HorizontalAlignment="Center" Content="重试"
+                                Command="{Binding RefreshTrashCommand}" />
+                    </StackPanel>
+
+                    <!-- 空态：仅“请求成功且 0 条”才出现 -->
+                    <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6"
+                                IsVisible="{Binding ShowTrashEmpty}">
+                        <mi:MaterialIcon Kind="DeleteEmptyOutline" IconSize="30"
+                                         Foreground="{DynamicResource BondTertiary}"
+                                         HorizontalAlignment="Center" />
+                        <TextBlock Classes="body" Text="回收站是空的" HorizontalAlignment="Center" />
+                        <TextBlock Classes="meta" FontSize="11" Foreground="{DynamicResource BondTertiary}"
+                                   Text="删除的文件会在这里保留一段时间" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- 列表 -->
+                    <Grid Grid.Row="2" RowDefinitions="Auto,*"
+                          IsVisible="{Binding !ShowTrashError}">
+                        <!-- 列表头：全选 + 列名 -->
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,76,112,240,Auto"
+                              Margin="10,2,10,4"
+                              IsVisible="{Binding !IsTileView}">
+                            <ToggleButton Classes="trashcheck"
+                                          IsChecked="{Binding TrashAllSelected, Mode=TwoWay}"
+                                          VerticalAlignment="Center" ToolTip.Tip="全选 / 全不选">
+                                <mi:MaterialIcon Kind="Check" IconSize="10"
+                                                 IsVisible="{Binding TrashAllSelected}"
+                                                 Foreground="{DynamicResource BondBg}" />
+                            </ToggleButton>
+                            <TextBlock Grid.Column="2" Classes="meta" FontSize="10.5" Margin="10,0"
+                                       Foreground="{DynamicResource BondTertiary}" Text="名称 / 原路径" />
+                            <TextBlock Grid.Column="3" Classes="meta" FontSize="10.5"
+                                       Foreground="{DynamicResource BondTertiary}" Text="大小" />
+                            <TextBlock Grid.Column="4" Classes="meta" FontSize="10.5"
+                                       Foreground="{DynamicResource BondTertiary}" Text="删除时间" />
+                            <TextBlock Grid.Column="5" Classes="meta" FontSize="10.5"
+                                       Foreground="{DynamicResource BondTertiary}" Text="保留期" />
+                            <TextBlock Grid.Column="6" Classes="meta" FontSize="10.5"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource BondTertiary}" Text="操作" />
+                        </Grid>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                      IsVisible="{Binding !IsTileView}">
+                        <ItemsControl ItemsSource="{Binding TrashItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:TrashRow">
+                                    <Border Classes="filerow" Height="40" Padding="10,3" Margin="0,1">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,76,112,240,Auto">
+                                            <ToggleButton Classes="trashcheck"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          VerticalAlignment="Center"
+                                                          ToolTip.Tip="勾选后可在底部批量操作">
+                                                <mi:MaterialIcon Kind="Check" IconSize="10"
+                                                                 IsVisible="{Binding IsSelected}"
+                                                                 Foreground="{DynamicResource BondBg}" />
+                                            </ToggleButton>
+                                            <Border Grid.Column="1" Width="28" Height="28" CornerRadius="7"
+                                                    Background="{Binding IconBackground}" VerticalAlignment="Center">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" IconSize="14"
+                                                                 Foreground="{Binding IconBrush}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="2" Margin="10,0" Spacing="1"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}" Classes="body"
+                                                           FontSize="12.5" TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding FileName}" />
+                                                <TextBlock Classes="meta" FontSize="10.5"
+                                                           Foreground="{DynamicResource BondTertiary}"
+                                                           Text="{Binding OriginalPathText}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding OriginalPathText}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="3" Classes="meta" FontSize="11"
+                                                       VerticalAlignment="Center" Text="{Binding SizeText}" />
+                                            <TextBlock Grid.Column="4" Classes="meta" FontSize="11"
+                                                       VerticalAlignment="Center" Text="{Binding DeletedText}"
+                                                       ToolTip.Tip="删除时间" />
+                                            <TextBlock Grid.Column="5" Classes="meta trashremain"
+                                                       Classes.urgent="{Binding IsExpired}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center" Text="{Binding RemainingText}"
+                                                       ToolTip.Tip="{Binding RemainingTip}" />
+                                            <Button Grid.Column="6" Classes="ghosticon" Padding="8,2"
+                                                    MinHeight="24" VerticalAlignment="Center"
+                                                     AutomationProperties.Name="恢复"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.RestoreTrashRowCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="恢复到原路径（同名自动改名）">
+                                                <TextBlock Text="恢复" FontSize="11" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- 平铺：保留期进副行（task-113），与列表同一数据 -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                      IsVisible="{Binding IsTileView}">
+                            <ItemsControl ItemsSource="{Binding TrashItems}" Margin="0,4">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" ItemWidth="150"
+                                                   ItemSpacing="8" LineSpacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:TrashRow">
+                                        <Border Width="150" Padding="10" CornerRadius="10"
+                                                Background="{DynamicResource BondSurfaceAlt}"
+                                                BorderBrush="{DynamicResource BondBorder}"
+                                                BorderThickness="1"
+                                                PointerPressed="OnTrashTilePressed"
+                                                ToolTip.Tip="单击勾选（可批量恢复 / 彻底删除）">
+                                            <StackPanel Spacing="5">
+                                                <Border Width="30" Height="30" CornerRadius="8"
+                                                        HorizontalAlignment="Left"
+                                                        Background="{Binding IconBackground}">
+                                                    <mi:MaterialIcon Kind="{Binding Icon}" IconSize="15"
+                                                                     Foreground="{Binding IconBrush}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="{Binding FileName}" Classes="body"
+                                                           FontSize="12.5" MaxLines="1"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding FileName}" />
+                                                <TextBlock Classes="meta" FontSize="10.5"
+                                                           Foreground="{DynamicResource BondTertiary}"
+                                                           Text="{Binding DeletedText}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="meta trashremain" FontSize="10.5"
+                                                           Classes.urgent="{Binding IsExpired}"
+                                                           TextWrapping="Wrap"
+                                                           Text="{Binding RemainingText}"
+                                                           ToolTip.Tip="{Binding RemainingTip}" />
+                                                <!-- task-4：平铺视图此前没有「恢复」入口（只有列表视图有），
+                                                     用户切到平铺后回收站看起来就是「没有还原功能」 -->
+                                                <Button Classes="soft" HorizontalAlignment="Stretch"
+                                                        Padding="8,2" MinHeight="24" Margin="0,2,0,0"
+                                                        AutomationProperties.Name="恢复"
+                                                        Command="{ReflectionBinding $parent[UserControl].DataContext.RestoreTrashRowCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip.Tip="恢复到原路径（同名自动改名）">
+                                                    <TextBlock Text="恢复" FontSize="11" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- 底部操作条：与文件页 SelectionBar 同一套模式（浮在底部居中） -->
+                    <Border Grid.Row="3" IsVisible="{Binding HasTrashSelection}"
+                            HorizontalAlignment="Center" Margin="0,8,0,0"
+                            Background="{DynamicResource BondSurfaceAlt}"
+                            BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                            CornerRadius="12" Padding="12,7"
+                            BoxShadow="0 8 24 0 #22000000">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="{Binding TrashSelectionText}" FontSize="12"
+                                       FontWeight="Medium" VerticalAlignment="Center"
+                                       MaxWidth="280" TextTrimming="CharacterEllipsis" />
+                            <Button Classes="soft" Content="恢复" Padding="10,3"
+                                    AutomationProperties.Name="批量恢复"
+                                    Command="{Binding RestoreTrashSelectionCommand}" />
+                            <Button Classes="soft" Content="彻底删除" Padding="10,3"
+                                    Command="{Binding RequestPurgeTrashCommand}" />
+                            <Button Classes="soft" Content="清空回收站" Padding="10,3"
+                                    Command="{Binding RequestClearTrashCommand}" />
+                            <Button Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                                    Command="{Binding ClearTrashSelectionCommand}"
+                                    ToolTip.Tip="取消选择">
+                                <mi:MaterialIcon Kind="Close" IconSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 彻底删除二次确认 -->
+            <Border IsVisible="{Binding IsPurgeTrashConfirmOpen}" Background="#33000000">
+                <Border Width="400" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="{DynamicResource BondSurface}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                        CornerRadius="12" Padding="18" BoxShadow="0 12 32 0 #33000000">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="彻底删除这些文件？" FontSize="14" FontWeight="SemiBold" />
+                        <TextBlock Classes="body" TextWrapping="Wrap" FontSize="12"
+                                   Text="{Binding PurgeTrashConfirmDetail}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <Button Classes="soft" Content="取消"
+                                    Command="{Binding CancelTrashActionCommand}" />
+                            <Button Classes="primary" Content="彻底删除" Background="#C0392B"
+                                    Command="{Binding ConfirmPurgeTrashCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- 清空二次确认：要求输入「清空」 -->
+            <Border IsVisible="{Binding IsEmptyTrashConfirmOpen}" Background="#33000000">
+                <Border Width="400" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="{DynamicResource BondSurface}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                        CornerRadius="12" Padding="18" BoxShadow="0 12 32 0 #33000000">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="清空回收站？" FontSize="14" FontWeight="SemiBold" />
+                        <TextBlock Classes="body" TextWrapping="Wrap" FontSize="12"
+                                   Text="此操作不可恢复，回收站里的文件会被彻底删除。请输入「清空」确认。" />
+                        <TextBox Text="{Binding EmptyTrashConfirmText, Mode=TwoWay}"
+                                 PlaceholderText="输入 清空" Height="32" MinHeight="32" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <Button Classes="soft" Content="取消"
+                                    Command="{Binding CancelTrashActionCommand}" />
+                            <Button Classes="primary" Content="清空" Background="#C0392B"
+                                    IsEnabled="{Binding IsEmptyTrashConfirmValid}"
+                                    Command="{Binding ConfirmClearTrashCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

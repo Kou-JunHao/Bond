@@ -1,0 +1,1152 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             xmlns:c="using:Bond.Views.Controls"
+             xmlns:pages="using:Bond.Views.Pages"
+             x:Class="Bond.Views.Pages.ChatPage"
+             x:DataType="vm:ChatPageViewModel"
+             Background="{DynamicResource BondBg}">
+
+    <UserControl.Resources>
+        <!-- 气泡最大宽（会话区 60%）：由 ChatPage 代码在尺寸变化时写入，避免硬编码像素。 -->
+        <x:Double x:Key="ChatBubbleMaxWidth">520</x:Double>
+    </UserControl.Resources>
+
+    <!--
+        task-178：聊天页按 SukiChat.Client（SukiUI IM 客户端）的版式重做视觉与间距。
+        参考要点 → Bond 暖色令牌的落点：
+          · 消息按发送者分组：组内 5 DIP、组间 15 DIP；头像 36 只在组首出现并与气泡顶部对齐，
+            组内其余行留出同宽空列保证气泡左/右边缘严格对齐（SukiChat 的 head 在组卡片外侧）。
+          · 气泡圆角 12、内边距 13,9，最大宽 = 会话区 60%（上限 660 DIP）；对方 BondSurfaceAlt+1px
+            BondBorder，自己 BondAccent + BondOnAccent（不照搬参考项目的半透明强调色）。
+          · 列表行 64：36 头像 + 两行文本 + 时间/未读徽标，整行圆角选中底色（SukiChat ChatLeftPanelView）。
+          · 输入区改为「工具条 + 多行输入 + 发送」三段（SukiChat ChatInputPanelView 的 35 工具条 +
+            多行输入 + 独立发送键），输入区独立成行（Auto/*/Auto），最大化不被消息流遮盖。
+          · 输入框不再写死 Height：MinHeight + VerticalContentAlignment + 匹配 padding，避免文字上下被裁。
+        三栏：会话列表(292) / 消息流(*) / 会话详情(288, 可关)。分栏统一 1px BondBorder。
+    -->
+    <UserControl.Styles>
+        <!-- ═══════════ 会话列表 ═══════════ -->
+        <Style Selector="Button.threadrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="MinHeight" Value="64" />
+            <Setter Property="Transitions" Value="{x:Null}" />
+        </Style>
+        <Style Selector="Button.threadrow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+        <Style Selector="Button.threadrow.selected">
+            <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        </Style>
+        <Style Selector="Button.threadrow.selected:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondAccentFillStrong}" />
+        </Style>
+
+        <!-- 会话/消息头像：36 圆，与全局 avatar 口径一致（Typography 的 Border.avatar 也是 36）。 -->
+        <Style Selector="Border.msgavatar">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+        <Style Selector="Border.msgavatar TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- 连接状态细条：只在非「已连接」时出现，不抢视觉 -->
+        <Style Selector="Border.connstrip">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Height" Value="24" />
+        </Style>
+        <Style Selector="Border.connstrip Border#ConnDot">
+            <Setter Property="Background" Value="{DynamicResource BondTertiary}" />
+        </Style>
+        <Style Selector="Border.connstrip.connected Border#ConnDot">
+            <Setter Property="Background" Value="{DynamicResource BondSuccess}" />
+        </Style>
+        <Style Selector="Border.connstrip.polling Border#ConnDot">
+            <Setter Property="Background" Value="{DynamicResource BondWarning}" />
+        </Style>
+        <Style Selector="Border.connstrip.connecting Border#ConnDot">
+            <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+        </Style>
+        <Style Selector="Border.connstrip.offline Border#ConnDot">
+            <Setter Property="Background" Value="{DynamicResource BondError}" />
+        </Style>
+
+        <!-- ═══════════ 消息行 / 气泡 ═══════════
+             组内 5 DIP；组首再 +10（合计 15，落在任务要求的 12–16）。
+             行内三列固定 36/36 + 10 列距：组内后续行虽然没有头像，气泡仍与组首严格同边。 -->
+        <Style Selector="Panel.msgrow">
+            <Setter Property="Margin" Value="0,0,0,5" />
+        </Style>
+        <Style Selector="Panel.msgrow.groupstart">
+            <Setter Property="Margin" Value="0,10,0,5" />
+        </Style>
+        <Style Selector="StackPanel.bubblecol">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="MaxWidth" Value="720" />
+        </Style>
+        <Style Selector="StackPanel.bubblecol.mine">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+
+        <Style Selector="Border.bubble">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="13,9" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Border.bubble:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondBorderStrong}" />
+        </Style>
+        <Style Selector="Border.bubble.mine">
+            <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <!-- 图片消息：气泡退成 6 的“相框”，缩略图自己带 9 圆角（QQ 图片消息观感） -->
+        <Style Selector="Border.bubble.image">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="CornerRadius" Value="13" />
+        </Style>
+        <!-- 自己气泡上的文字统一主题反色（暗色下为暖黑，不写死纯白） -->
+        <Style Selector="Border.bubble.mine TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BondOnAccent}" />
+        </Style>
+        <Style Selector="Border.bubble.mine TextBlock.metasoft">
+            <Setter Property="Foreground" Value="{DynamicResource BondOnAccent}" />
+            <Setter Property="Opacity" Value="0.78" />
+        </Style>
+        <!-- 失败态：红边 + 浅底，重试入口在气泡下方单独一行，文字不挤进气泡 -->
+        <Style Selector="Border.bubble.failed">
+            <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondError}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="Border.bubble.failed TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+        </Style>
+        <Style Selector="Border.bubble.highlighted">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="Border.bubble.mine.highlighted">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccentDeep}" />
+        </Style>
+
+        <Style Selector="TextBlock.msgtext">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- 气泡下方状态：发送中 / 已读 / 失败重试；自己一侧靠右对齐 -->
+        <Style Selector="TextBlock.statusmsg">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource BondTextMuted}" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Margin" Value="2,0,0,0" />
+        </Style>
+        <Style Selector="TextBlock.statusmsg.mine">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+        </Style>
+        <Style Selector="Button.retry">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource BondError}" />
+        </Style>
+        <Style Selector="Button.retry.mine">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.retrytext">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource BondError}" />
+        </Style>
+
+        <!-- hover 浮层时间：不占行高；自己一侧在气泡左边、对方一侧在气泡右边（对称） -->
+        <Style Selector="TextBlock.msgtime">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource BondTextMuted}" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
+        <Style Selector="Panel.msgrow:pointerover TextBlock.msgtime">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+
+        <!-- ═══════════ 气泡内附件卡（QQ 式：图标 + 名称 + 大小） ═══════════ -->
+        <Style Selector="Border.filecard">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Border.filecard:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+        </Style>
+        <Style Selector="Border.bubble.mine Border.filecard:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondAccentDeep}" />
+        </Style>
+        <Style Selector="Button.filecard">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Border.fileicon">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        </Style>
+        <Style Selector="Border.bubble.mine Border.fileicon">
+            <Setter Property="Background" Value="{DynamicResource BondAccentDeep}" />
+        </Style>
+
+        <!-- 上传进度：自己气泡是强调实底，进度条反色，避免橙上画橙看不清 -->
+        <Style Selector="Border.bubble.mine ProgressBar /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="{DynamicResource BondOnAccent}" />
+        </Style>
+
+        <!-- ═══════════ 系统 / 撤回 / 分割线 ═══════════ -->
+        <Style Selector="Border.recallline">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="Margin" Value="0,4,0,8" />
+        </Style>
+        <Style Selector="Button.minilink">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource BondAccent}" />
+            <Setter Property="FontSize" Value="10.5" />
+        </Style>
+        <Style Selector="TextBlock.smalltag">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource BondTextMuted}" />
+        </Style>
+
+        <!-- 搜索结果行 -->
+        <Style Selector="Button.searchrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.searchrow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+
+        <!-- 骨架屏 -->
+        <Style Selector="Border.skel">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Height" Value="40" />
+        </Style>
+
+        <!-- ═══════════ 输入框（task-177 全局基线之上，聊天页显式声明，避免被任何主题样式压扁） ═══════════ -->
+        <Style Selector="TextBox.draft">
+            <Setter Property="MinHeight" Value="46" />
+            <Setter Property="MaxHeight" Value="132" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="TextBox.draft:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+        </Style>
+        <Style Selector="TextBox.chatsearch">
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+
+        <!-- ═══════════ 工具栏（消息页头部图标按钮） ═══════════ -->
+        <Style Selector="StackPanel.panetools > Button.ghosticon">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="292,*,Auto">
+
+        <!-- ═════════════════ 左栏：会话列表 ═════════════════ -->
+        <Border Grid.Column="0" Background="{DynamicResource BondSurface}"
+                BorderBrush="{DynamicResource BondBorder}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto,*">
+
+                <!-- 顶部：页标题 21（与文件页/工作区页 h1 同口径）+ 会话数 + 操作 -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="20,0,12,0" Height="68">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Classes="h1" Text="聊天" />
+                        <TextBlock Classes="hint" Text="{Binding ThreadCountText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Classes="panetools" Orientation="Horizontal"
+                                Spacing="2" VerticalAlignment="Center">
+                        <Button Classes="ghosticon" Command="{Binding OpenPeerPickerCommand}"
+                                ToolTip.Tip="发起会话">
+                            <mi:MaterialIcon Kind="Plus" IconSize="15" />
+                        </Button>
+                        <Button Classes="ghosticon" Command="{Binding RefreshCommand}"
+                                ToolTip.Tip="刷新会话">
+                            <mi:MaterialIcon Kind="Refresh" IconSize="14" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 搜索：高 36、无边框浅底，文字垂直居中（不再写死 Height 压扁字形） -->
+                <TextBox Grid.Row="1" Classes="chatsearch" Margin="16,0,16,10"
+                         PlaceholderText="搜索会话"
+                         Text="{Binding SearchText, Mode=TwoWay}" />
+
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled" Padding="8,0,8,10">
+                    <StackPanel Spacing="2">
+                        <StackPanel IsVisible="{Binding ShowThreadSkeleton}" Spacing="10" Margin="8,6">
+                            <Border Classes="skel" Height="56" />
+                            <Border Classes="skel" Height="56" />
+                            <Border Classes="skel" Height="56" />
+                            <Border Classes="skel" Height="56" />
+                        </StackPanel>
+
+                        <!-- 失败可重试 -->
+                        <Border IsVisible="{Binding HasThreadListError}"
+                                Background="{DynamicResource BondAccentFill}"
+                                BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                                CornerRadius="12" Padding="14,12" Margin="6,6">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="会话加载失败" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BondAccentDeep}" />
+                                <TextBlock Text="{Binding ThreadListError}" Classes="meta" TextWrapping="Wrap" />
+                                <Button Classes="outline" Content="重试" HorizontalAlignment="Left"
+                                        Command="{Binding RefreshCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 空态：引导发起会话（不是空白） -->
+                        <Border IsVisible="{Binding ShowThreadEmpty}"
+                                Background="{DynamicResource BondSurfaceAlt}" CornerRadius="12"
+                                Padding="16,18" Margin="6,8">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="还没有会话" FontSize="13.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource BondText}" />
+                                <TextBlock Classes="meta" TextWrapping="Wrap"
+                                           Text="与好友私聊或进入工作区频道后，会话会出现在这里。" />
+                                <Button Classes="soft" Content="发起会话" HorizontalAlignment="Left"
+                                        Command="{Binding OpenPeerPickerCommand}" />
+                            </StackPanel>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding VisibleThreads}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ChatThread">
+                                    <Button Classes="threadrow" Classes.selected="{Binding IsSelected}"
+                                            Margin="0,1"
+                                            Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).SelectThreadCommand}"
+                                            CommandParameter="{Binding}">
+                                        <Grid ColumnDefinitions="36,*,Auto" ColumnSpacing="10" MinHeight="52">
+                                            <Border Classes="msgavatar" VerticalAlignment="Center">
+                                                <Panel>
+                                                    <TextBlock pages:ChatAvatar.Name="{Binding Title}" />
+                                                    <Image pages:ChatAvatar.Url="{Binding AvatarUrl}"
+                                                           Stretch="UniformToFill" />
+                                                </Panel>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+                                                    <TextBlock Text="{Binding Title}" FontSize="13.5"
+                                                               FontWeight="SemiBold" MaxWidth="150"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource BondText}" />
+                                                    <mi:MaterialIcon Grid.Column="1" Kind="Pin" IconSize="11"
+                                                                     IsVisible="{Binding ShowPinned}"
+                                                                     Foreground="{DynamicResource BondTertiary}"
+                                                                     VerticalAlignment="Center" />
+                                                    <mi:MaterialIcon Grid.Column="2" Kind="BellOff" IconSize="11"
+                                                                     IsVisible="{Binding ShowMuted}"
+                                                                     Foreground="{DynamicResource BondTertiary}"
+                                                                     VerticalAlignment="Center" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding LastMessage}" FontSize="11.5"
+                                                           Foreground="{DynamicResource BondTextMuted}"
+                                                           MaxWidth="150"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center"
+                                                        MinWidth="36">
+                                                <TextBlock Text="{Binding TimeText}" FontSize="10"
+                                                           Foreground="{DynamicResource BondTextMuted}"
+                                                           HorizontalAlignment="Right" />
+                                                <Border MinWidth="18" Height="18" CornerRadius="9"
+                                                        Background="{DynamicResource BondAccent}"
+                                                        IsVisible="{Binding ShowUnreadNumber}"
+                                                        HorizontalAlignment="Right">
+                                                    <TextBlock Text="{Binding UnreadText}" FontSize="9.5"
+                                                               FontWeight="SemiBold" Foreground="{DynamicResource BondOnAccent}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" Margin="5,0" />
+                                                </Border>
+                                                <Border Width="8" Height="8" CornerRadius="4"
+                                                        Background="{DynamicResource BondTertiary}"
+                                                        IsVisible="{Binding ShowUnreadDot}"
+                                                        HorizontalAlignment="Right" Margin="0,0,3,0" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- ═════════════════ 中栏：消息流 ═════════════════ -->
+        <!-- 行定义严格 Auto(头部)/Auto(连接条)/*(消息) /Auto(输入区)：
+             输入区永远在最后一行 Auto 里，最大化/还原都不会被消息流覆盖或裁掉。 -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
+
+            <!-- 会话头：56+ 高度、36 头像、标题 15；底部 1px 分隔线 -->
+            <Grid Grid.Row="0" RowDefinitions="*,Auto" IsVisible="{Binding HasSelection}">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="24,0,16,0" Height="64"
+                      ColumnSpacing="12">
+                    <Border Classes="msgavatar" Width="36" Height="36" VerticalAlignment="Center">
+                        <Panel>
+                            <TextBlock pages:ChatAvatar.Name="{Binding SelectedThread.Title}" />
+                            <Image pages:ChatAvatar.Url="{Binding PeerAvatarUrl}"
+                                   Stretch="UniformToFill" />
+                        </Panel>
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SelectedThread.Title}" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding ThreadSubtitle}" FontSize="11.5"
+                                   Foreground="{DynamicResource BondTextMuted}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Classes="panetools" Orientation="Horizontal"
+                                Spacing="2" VerticalAlignment="Center">
+                        <Button Classes="ghosticon" Command="{Binding TogglePinCommand}"
+                                ToolTip.Tip="{Binding PinText}">
+                            <Panel>
+                                <mi:MaterialIcon Kind="PinOutline" IconSize="15"
+                                                 IsVisible="{Binding !SelectedThread.ShowPinned}" />
+                                <mi:MaterialIcon Kind="Pin" IconSize="15"
+                                                 Foreground="{DynamicResource BondAccent}"
+                                                 IsVisible="{Binding SelectedThread.ShowPinned}" />
+                            </Panel>
+                        </Button>
+                        <Button Classes="ghosticon" Command="{Binding ToggleMuteCommand}"
+                                ToolTip.Tip="{Binding MuteText}">
+                            <Panel>
+                                <mi:MaterialIcon Kind="BellOutline" IconSize="15"
+                                                 IsVisible="{Binding !SelectedThread.ShowMuted}" />
+                                <mi:MaterialIcon Kind="BellOff" IconSize="15"
+                                                 Foreground="{DynamicResource BondAccent}"
+                                                 IsVisible="{Binding SelectedThread.ShowMuted}" />
+                            </Panel>
+                        </Button>
+                        <Button Classes="ghosticon" Command="{Binding ToggleSearchCommand}"
+                                ToolTip.Tip="搜索消息">
+                            <mi:MaterialIcon Kind="Magnify" IconSize="15" />
+                        </Button>
+                        <Button Classes="ghosticon" Command="{Binding ToggleDetailsCommand}"
+                                ToolTip.Tip="会话详情">
+                            <mi:MaterialIcon Kind="InformationOutline" IconSize="15" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+                <Border Grid.Row="1" Height="1" Background="{DynamicResource BondBorder}" />
+            </Grid>
+
+            <!-- 连接状态细条（无会话时也显示，避免空白像坏掉） -->
+            <Border Grid.Row="1" Classes="connstrip" IsVisible="{Binding !IsConnected}"
+                    Classes.connected="{Binding IsConnected}"
+                    Classes.polling="{Binding IsPolling}"
+                    Classes.connecting="{Binding IsConnecting}"
+                    Classes.offline="{Binding IsOffline}">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="24,0,16,0">
+                    <Border x:Name="ConnDot" Width="7" Height="7" CornerRadius="3.5"
+                            VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding ConnectionText}" Margin="7,0,0,0"
+                               FontSize="10.5" Foreground="{DynamicResource BondTextMuted}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding ThreadCountText}" FontSize="10.5"
+                               Foreground="{DynamicResource BondTextMuted}"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <!-- 消息流 + 覆盖层（搜索 / 三态 / 拖放遮罩） -->
+            <Grid Grid.Row="2" ClipToBounds="True">
+                <ScrollViewer x:Name="MessagesScroll" Padding="24,8,24,0"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              ScrollChanged="OnMessagesScrollChanged">
+                    <StackPanel>
+                        <Button Classes="ghosticon" HorizontalAlignment="Center" Margin="0,10,0,6"
+                                Padding="12,4" IsVisible="{Binding HasMoreHistory}"
+                                Command="{Binding LoadMoreCommand}">
+                            <TextBlock Text="加载更早的消息" Classes="meta" />
+                        </Button>
+                        <ProgressBar IsIndeterminate="True" Height="2" Margin="0,2"
+                                     IsVisible="{Binding IsLoadingHistory}" />
+
+                        <ItemsControl x:Name="MessagesList" ItemsSource="{Binding Messages}">
+                            <ItemsControl.Styles>
+                                <!-- 每条消息的高度由内容决定：容器顶部对齐，绝不拉伸撑高行 -->
+                                <Style Selector="ContentPresenter">
+                                    <Setter Property="VerticalAlignment" Value="Top" />
+                                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                                </Style>
+                            </ItemsControl.Styles>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ChatMessage">
+                                    <StackPanel VerticalAlignment="Top">
+                                        <!-- 日期分割线：居中胶囊 + 两侧细线（SukiChat 的时间提示的 Bond 化） -->
+                                        <Grid IsVisible="{Binding ShowDaySeparator}"
+                                              ColumnDefinitions="*,Auto,*" Margin="0,16,0,4">
+                                            <Border Height="1" Background="{DynamicResource BondBorder}"
+                                                    VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Border Grid.Column="1" Background="{DynamicResource BondSurfaceAlt}"
+                                                    CornerRadius="9" Padding="10,3">
+                                                <TextBlock Text="{Binding DayText}" FontSize="10.5"
+                                                           Foreground="{DynamicResource BondTextMuted}" />
+                                            </Border>
+                                            <Border Grid.Column="2" Height="1" Background="{DynamicResource BondBorder}"
+                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        </Grid>
+
+                                        <!-- 未读分割线 -->
+                                        <Grid IsVisible="{Binding ShowUnreadDivider}"
+                                              ColumnDefinitions="*,Auto,*" Margin="0,12,0,10">
+                                            <Border Height="1" Background="{DynamicResource BondAccentBorder}"
+                                                    VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Border Grid.Column="1" Background="{DynamicResource BondAccentFill}"
+                                                    CornerRadius="9" Padding="10,3">
+                                                <TextBlock Text="未读消息" FontSize="10.5"
+                                                           Foreground="{DynamicResource BondAccent}" />
+                                            </Border>
+                                            <Border Grid.Column="2" Height="1" Background="{DynamicResource BondAccentBorder}"
+                                                    VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        </Grid>
+
+                                        <!-- 系统 / 已删除提示 -->
+                                        <TextBlock IsVisible="{Binding IsSystem}" Text="{Binding SystemText}"
+                                                   Classes="meta" HorizontalAlignment="Center"
+                                                   Margin="0,6,0,8" TextWrapping="Wrap" />
+
+                                        <!-- 消息行：头像 36 / 气泡列 / 头像 36；头像只在组首出现并顶部对齐 -->
+                                        <Panel IsVisible="{Binding BubbleVisible}">
+                                            <Panel Classes="msgrow" Classes.groupstart="{Binding IsGroupStart}">
+                                                <Grid ColumnDefinitions="36,*,36" ColumnSpacing="10">
+                                                    <!-- 对方头像：组首且非自己 -->
+                                                    <Panel Grid.Column="0" IsVisible="{Binding IsGroupStart}"
+                                                           VerticalAlignment="Top" Margin="0,3,0,0">
+                                                        <Border Classes="msgavatar" IsVisible="{Binding !IsMine}">
+                                                            <Panel>
+                                                                <TextBlock pages:ChatAvatar.Name="{Binding SenderName}" />
+                                                                <Image pages:ChatAvatar.Url="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).PeerAvatarUrl}"
+                                                                       Stretch="UniformToFill" />
+                                                            </Panel>
+                                                        </Border>
+                                                    </Panel>
+
+                                                    <!-- 气泡列：左/右由 .mine 决定；权限、间距、状态都在这一列里 -->
+                                                    <StackPanel Grid.Column="1" Classes="bubblecol"
+                                                                Classes.mine="{Binding IsMine}" Spacing="5">
+                                                        <Border Classes="bubble" Classes.mine="{Binding IsMine}"
+                                                                Classes.image="{Binding IsImage}"
+                                                                Classes.failed="{Binding IsFailed}"
+                                                                Classes.highlighted="{Binding Highlighted}"
+                                                                MaxWidth="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).BubbleMaxWidth}">
+                                                            <StackPanel Spacing="7">
+                                                                <!-- 文本 -->
+                                                                <TextBlock Text="{Binding Text}" IsVisible="{Binding IsText}"
+                                                                           Classes="msgtext" />
+
+                                                                <!-- 图片消息：等比缩略图气泡（task-3：按真实宽高比，最大 220×260，圆角 12） + 可选说明 -->
+                                                                <StackPanel IsVisible="{Binding IsImage}" Spacing="5">
+                                                                    <Button Classes="filecard" Padding="0"
+                                                                            IsEnabled="{Binding CanPreviewFile}"
+                                                                            ToolTip.Tip="点击预览（预览面板里可另存）"
+                                                                            Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).OpenAttachmentCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <pages:ChatImageBubble Node="{Binding FileNode}" RequestWidth="480" />
+                                                                    </Button>
+                                                                    <TextBlock Text="{Binding Text}" IsVisible="{Binding HasCaption}"
+                                                                               Classes="msgtext" Margin="2,0,2,2" />
+                                                                </StackPanel>
+
+                                                                <!-- 文件消息：QQ 式文件卡（类型图标 + 文件名 + 大小）；点击 = 下载到下载目录 -->
+                                                                <Border Classes="filecard" IsVisible="{Binding IsFile}"
+                                                                        IsHitTestVisible="{Binding CanDownload}"
+                                                                        PointerPressed="OnDownloadAttachmentPressed"
+                                                                        Cursor="Hand" MinWidth="188"
+                                                                        ToolTip.Tip="点击下载到下载目录">
+                                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="11">
+                                                                        <Border Classes="fileicon">
+                                                                            <Panel>
+                                                                                <mi:MaterialIcon Kind="FileDocumentOutline"
+                                                                                                 IconSize="21"
+                                                                                                 Foreground="{DynamicResource BondOnAccent}"
+                                                                                                 HorizontalAlignment="Center"
+                                                                                                 VerticalAlignment="Center"
+                                                                                                 IsVisible="{Binding IsMine}" />
+                                                                                <mi:MaterialIcon Kind="FileDocumentOutline"
+                                                                                                 IconSize="21"
+                                                                                                 Foreground="{DynamicResource BondAccentDeep}"
+                                                                                                 HorizontalAlignment="Center"
+                                                                                                 VerticalAlignment="Center"
+                                                                                                 IsVisible="{Binding !IsMine}" />
+                                                                            </Panel>
+                                                                        </Border>
+                                                                        <StackPanel Grid.Column="1" Spacing="4"
+                                                                                    VerticalAlignment="Center">
+                                                                            <!-- 自己气泡是强调实底：文件名/大小继承 BondOnAccent -->
+                                                                            <TextBlock Text="{Binding FileName}" FontSize="12.5"
+                                                                                       FontWeight="SemiBold"
+                                                                                       MaxWidth="238"
+                                                                                       TextTrimming="CharacterEllipsis" />
+                                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                                <TextBlock Text="{Binding FileSizeText}"
+                                                                                           FontSize="10.5" Classes="metasoft" />
+                                                                                <TextBlock Text="发送中" FontSize="10.5"
+                                                                                           Classes="metasoft"
+                                                                                           IsVisible="{Binding IsSending}" />
+                                                                                <TextBlock Text="点击下载" FontSize="10.5"
+                                                                                           Classes="metasoft"
+                                                                                           Opacity="0.8"
+                                                                                           IsVisible="{Binding CanDownload}" />
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </Grid>
+                                                                </Border>
+
+                                                                <!-- 附件真实上传进度（仅自己且上传中） -->
+                                                                <StackPanel Spacing="5"
+                                                                            IsVisible="{Binding ShowUploadProgress}">
+                                                                    <ProgressBar Height="4" Maximum="100"
+                                                                                 Value="{Binding UploadProgressPercent}"
+                                                                                 Foreground="{DynamicResource BondAccent}"
+                                                                                 Background="{DynamicResource BondAccentDeep}"
+                                                                                 CornerRadius="2" />
+                                                                    <Grid ColumnDefinitions="*,Auto">
+                                                                        <TextBlock Text="{Binding UploadProgressText}"
+                                                                                   FontSize="10.5"
+                                                                                   Classes="metasoft" />
+                                                                        <Button Classes="minilink" Grid.Column="1"
+                                                                                Content="取消上传"
+                                                                                Foreground="{DynamicResource BondOnAccent}"
+                                                                                Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).CancelUploadCommand}"
+                                                                                CommandParameter="{Binding}" />
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <!-- 状态行：发送中 / 已读回执 / 失败重试（不溢出气泡） -->
+                                                        <TextBlock Text="发送中…" Classes="statusmsg"
+                                                                   Classes.mine="{Binding IsMine}"
+                                                                   IsVisible="{Binding IsSending}" />
+                                                        <TextBlock Text="{Binding ReadReceiptText}" Classes="statusmsg"
+                                                                   Classes.mine="{Binding IsMine}"
+                                                                   Foreground="{DynamicResource BondAccent}"
+                                                                   IsVisible="{Binding HasReadReceipt}" />
+                                                        <Button Classes="retry" Classes.mine="{Binding IsMine}"
+                                                                IsVisible="{Binding IsFailed}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).RetryMessageCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="11"
+                                                                                 Foreground="{DynamicResource BondError}" />
+                                                                <TextBlock Classes="retrytext" Text="发送失败 · 点击重试" />
+                                                            </StackPanel>
+                                                        </Button>
+
+                                                        <!-- task-3：文件下载 —— 真实字节进度 / 成功保存路径 / 失败点击重试 -->
+                                                        <StackPanel IsVisible="{Binding ShowDownloadProgress}" Spacing="4"
+                                                                    MaxWidth="320">
+                                                            <ProgressBar Height="3" Maximum="100"
+                                                                         Value="{Binding DownloadProgressPercent}"
+                                                                         Foreground="{DynamicResource BondAccent}"
+                                                                         Background="{DynamicResource BondBorder}"
+                                                                         CornerRadius="2" />
+                                                            <TextBlock Text="{Binding DownloadProgressText}"
+                                                                       Classes="statusmsg"
+                                                                       Classes.mine="{Binding IsMine}" />
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding DownloadStatusText}"
+                                                                   Classes="statusmsg"
+                                                                   Classes.mine="{Binding IsMine}"
+                                                                   IsVisible="{Binding HasDownloadStatus}"
+                                                                   MaxWidth="380"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding DownloadStatusText}" />
+                                                        <Button Classes="retry" Classes.mine="{Binding IsMine}"
+                                                                IsVisible="{Binding HasDownloadError}"
+                                                                ToolTip.Tip="点击重新下载"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).DownloadAttachmentCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="11"
+                                                                                 Foreground="{DynamicResource BondError}" />
+                                                                <TextBlock Classes="retrytext" Text="{Binding DownloadError}"
+                                                                           MaxWidth="340"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+
+                                                    <!-- 自己头像：组首且为自己 -->
+                                                    <Panel Grid.Column="2" IsVisible="{Binding IsGroupStart}"
+                                                           VerticalAlignment="Top" Margin="0,3,0,0">
+                                                        <Border Classes="msgavatar" IsVisible="{Binding IsMine}">
+                                                            <Panel>
+                                                                <TextBlock pages:ChatAvatar.Name="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).MyAvatarName}" />
+                                                                <Image Source="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).MyAvatarSource}"
+                                                                       Stretch="UniformToFill" />
+                                                            </Panel>
+                                                        </Border>
+                                                    </Panel>
+                                                </Grid>
+
+                                                <!-- hover 浮层：时间 / 撤回，不占行高；自己一侧在气泡左边、对方一侧在右边 -->
+                                                <TextBlock Classes="msgtime" Text="{Binding TimeText}"
+                                                           HorizontalAlignment="Right" Margin="0,0,48,2"
+                                                           IsHitTestVisible="False"
+                                                           IsVisible="{Binding !IsMine}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8"
+                                                            HorizontalAlignment="Left" Margin="48,0,0,2"
+                                                            IsHitTestVisible="False"
+                                                            IsVisible="{Binding IsMine}">
+                                                    <TextBlock Classes="msgtime" Text="{Binding ReadReceiptText}"
+                                                               IsVisible="{Binding HasReadReceipt}"
+                                                               Foreground="{DynamicResource BondAccent}" />
+                                                    <TextBlock Classes="msgtime" Text="{Binding TimeText}" />
+                                                </StackPanel>
+                                                <Button Classes="minilink" Content="撤回" IsVisible="{Binding CanRecall}"
+                                                        HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                        Margin="48,0,0,2"
+                                                        Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).RecallCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </Panel>
+                                        </Panel>
+
+                                        <!-- 撤回提示（居中细胶囊） -->
+                                        <Border Classes="recallline" IsVisible="{Binding RecallVisible}">
+                                            <TextBlock Text="{Binding RecallText}" FontSize="10.5" LineHeight="16"
+                                                       Foreground="{DynamicResource BondTextMuted}" />
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- 底部安全区：放在滚动内容内部而不是 ScrollViewer.Padding ——
+                             Avalonia 的 ScrollViewer Padding 不计入 Extent，贴底时最后一条会卡在视口下沿，
+                             这正是「输入区挡住最新消息」的根因。 -->
+                        <Border Height="32" Background="Transparent" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 有新消息浮条（滚离底部时出现，点击贴底） -->
+                <Button x:Name="NewMessagesBar" IsVisible="False" HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom" Margin="0,0,0,14" Classes="soft"
+                        Padding="14,6" CornerRadius="14" FontSize="11.5" Opacity="0.96"
+                        Content="有新消息 ↓" Click="OnNewMessagesClick" />
+
+                <!-- 骨架屏 -->
+                <StackPanel IsVisible="{Binding ShowSkeleton}" Spacing="14"
+                            VerticalAlignment="Top" Margin="24,18">
+                    <Border Classes="skel" Width="300" HorizontalAlignment="Left" Height="42" />
+                    <Border Classes="skel" Width="380" HorizontalAlignment="Right" Height="42" />
+                    <Border Classes="skel" Width="240" HorizontalAlignment="Left" Height="42" />
+                    <Border Classes="skel" Width="340" HorizontalAlignment="Right" Height="42" />
+                    <Border Classes="skel" Width="280" HorizontalAlignment="Left" Height="42" />
+                </StackPanel>
+
+                <!-- 失败可重试 -->
+                <Border IsVisible="{Binding HasError}"
+                        Background="{DynamicResource BondAccentFill}"
+                        BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                        CornerRadius="12" Padding="14,12" Margin="24,18"
+                        VerticalAlignment="Top" HorizontalAlignment="Left">
+                    <StackPanel Spacing="8" MaxWidth="420">
+                        <TextBlock Text="消息加载失败" FontSize="13.5" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondAccentDeep}" />
+                        <TextBlock Text="{Binding ErrorText}" Classes="meta" TextWrapping="Wrap" />
+                        <Button Classes="outline" Content="重试" HorizontalAlignment="Left"
+                                Command="{Binding RetryLoadCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 会话内空态 -->
+                <StackPanel IsVisible="{Binding ShowEmptyMessages}" Spacing="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="64" Height="64" CornerRadius="32"
+                            Background="{DynamicResource BondSurfaceAlt}">
+                        <mi:MaterialIcon Kind="ChatOutline" IconSize="28"
+                                         Foreground="{DynamicResource BondTertiary}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="还没有消息" FontSize="15" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Foreground="{DynamicResource BondText}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource BondTextMuted}"
+                               HorizontalAlignment="Center"
+                               Text="在下方输入框开始聊天，Enter 发送，Shift+Enter 换行" />
+                </StackPanel>
+
+                <!-- 未选会话 -->
+                <StackPanel IsVisible="{Binding ShowNoSelection}" Spacing="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="64" Height="64" CornerRadius="32"
+                            Background="{DynamicResource BondSurfaceAlt}">
+                        <mi:MaterialIcon Kind="ChatOutline" IconSize="28"
+                                         Foreground="{DynamicResource BondTertiary}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="选择一个会话开始聊天" FontSize="15" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Foreground="{DynamicResource BondText}" />
+                    <TextBlock FontSize="12" Foreground="{DynamicResource BondTextMuted}"
+                               HorizontalAlignment="Center"
+                               Text="左侧点会话，或按「+」发起新会话；也可以直接把文件拖进来" />
+                </StackPanel>
+
+                <!-- 搜索面板 -->
+                <Border IsVisible="{Binding ShowSearchPanel}"
+                        Background="{DynamicResource BondSurface}" Padding="24,18">
+                    <Grid RowDefinitions="Auto,Auto,*">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Text="搜索会话消息" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BondText}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding SearchCountText}" Classes="meta"
+                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <Button Grid.Column="2" Classes="ghosticon" Command="{Binding CloseSearchCommand}"
+                                    ToolTip.Tip="关闭搜索">
+                                <mi:MaterialIcon Kind="Close" IconSize="14" />
+                            </Button>
+                        </Grid>
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,12,0,12" ColumnSpacing="10">
+                            <TextBox Classes="draft" MinHeight="38" MaxHeight="38" Padding="12,0"
+                                     VerticalContentAlignment="Center" AcceptsReturn="False"
+                                     TextWrapping="NoWrap"
+                                     Text="{Binding SearchQuery, Mode=TwoWay}"
+                                     CornerRadius="10"
+                                     PlaceholderText="输入关键词，Enter 搜索（最多 64 字）"
+                                     MaxLength="64">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <Button Grid.Column="1" Classes="primary" Content="搜索"
+                                    Command="{Binding SearchCommand}" />
+                        </Grid>
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="没有匹配的消息" Classes="meta"
+                                           HorizontalAlignment="Center" Margin="0,16,0,0"
+                                           IsVisible="{Binding ShowSearchEmpty}" />
+                                <ItemsControl ItemsSource="{Binding SearchResults}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ChatSearchResult">
+                                            <Button Classes="searchrow"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).JumpToSearchResultCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <StackPanel Spacing="3">
+                                                        <TextBlock Text="{Binding Body}" FontSize="12.5"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource BondText}" />
+                                                        <TextBlock Text="{Binding SenderLabel}" Classes="smalltag" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding TimeText}"
+                                                               Classes="meta" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <!-- 拖拽到会话区时的蒙层（松开即发） -->
+                <Border IsVisible="{Binding ShowDropOverlay}"
+                        Background="{DynamicResource BondSurfaceGlass}" CornerRadius="14" Margin="16"
+                        BorderBrush="{DynamicResource BondAccent}" BorderThickness="1.5"
+                        IsHitTestVisible="False">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+                        <mi:MaterialIcon Kind="Upload" IconSize="34"
+                                         Foreground="{DynamicResource BondAccent}"
+                                         HorizontalAlignment="Center" />
+                        <TextBlock Text="松开即可发送到本会话" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}" HorizontalAlignment="Center" />
+                        <TextBlock Text="支持图片与文件，多个文件会逐条发送"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTextMuted}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 输入区（独立 Auto 行；顶部 1px 分割；不写死高度，最大化时不会被裁）
+                 QQ 式三段：工具条（图片/文件/提示）→ 多行输入 + 发送 → 无。 -->
+            <Border Grid.Row="3" Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="0,1,0,0"
+                    Padding="24,12,24,14">
+                <StackPanel Spacing="8">
+                    <!-- 发送错误 -->
+                    <Border IsVisible="{Binding HasSendError}"
+                            Background="{DynamicResource BondAccentFill}"
+                            BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                            CornerRadius="10" Padding="12,8">
+                        <TextBlock Text="{Binding SendError}" Classes="meta" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondAccentDeep}" />
+                    </Border>
+                    <!-- 离线回退提示 -->
+                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                IsVisible="{Binding ShowSendFallbackHint}">
+                        <mi:MaterialIcon Kind="CloudOff" IconSize="11"
+                                         Foreground="{DynamicResource BondTextMuted}" />
+                        <TextBlock Classes="meta" Text="{Binding SendFallbackHint}" />
+                    </StackPanel>
+
+                    <Grid RowDefinitions="Auto,Auto" RowSpacing="8" IsVisible="{Binding HasSelection}">
+                        <!-- 工具条：QQ 式附件入口在输入框上方左侧，右侧提示可直接粘贴/拖入 -->
+                        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <Button Classes="ghosticon" Padding="0" Width="34" Height="34"
+                                        Click="OnAttachImageClick" ToolTip.Tip="发送图片">
+                                    <mi:MaterialIcon Kind="ImageOutline" IconSize="17" />
+                                </Button>
+                                <Button Classes="ghosticon" Padding="0" Width="34" Height="34"
+                                        Click="OnAttachFileClick" ToolTip.Tip="发送文件">
+                                    <mi:MaterialIcon Kind="Paperclip" IconSize="17" />
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0"
+                                       Classes="hint"
+                                       Text="可直接粘贴图片，或把文件拖进窗口发送" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                        VerticalAlignment="Center" IsVisible="{Binding IsAttaching}">
+                                <mi:MaterialIcon Kind="Sync" IconSize="11"
+                                                 Foreground="{DynamicResource BondTextMuted}" />
+                                <TextBlock Text="{Binding AttachHint}" Classes="meta" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 多行输入 + 发送：MinHeight 保证一行文字上下留白，MaxHeight 之后内部滚动 -->
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <TextBox Grid.Column="0" x:Name="DraftBox" Classes="draft"
+                                     Text="{Binding Draft, Mode=TwoWay}"
+                                     MaxLength="{Binding MaxLength}"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     PlaceholderText="输入消息…（Enter 发送，Shift+Enter 换行）" />
+                            <Button Grid.Column="1" Classes="primary" Content="发送"
+                                    Height="46" MinWidth="76" Padding="18,0"
+                                    VerticalAlignment="Bottom"
+                                    Command="{Binding SendCommand}" IsEnabled="{Binding CanSend}"
+                                    ToolTip.Tip="发送（Enter）" />
+                        </Grid>
+                    </Grid>
+
+                    <TextBlock Classes="meta" IsVisible="{Binding !HasSelection}"
+                               Text="选择一个会话后即可发送消息。" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═════════════════ 右栏：会话详情（可关；窄窗由代码收起） ═════════════════ -->
+        <Border Grid.Column="2" Width="288" IsVisible="{Binding ShowDetails}"
+                Background="{DynamicResource BondSurface}"
+                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1,0,0,0">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <Grid Grid.Row="0" RowDefinitions="*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="20,0,10,0" Height="68">
+                        <TextBlock Text="会话详情" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding CloseDetailsCommand}"
+                                ToolTip.Tip="关闭详情">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+                    <Border Grid.Row="1" Height="1" Background="{DynamicResource BondBorder}" />
+                </Grid>
+
+                <StackPanel Grid.Row="1" Spacing="12" Margin="20,16,20,14">
+                    <Border Width="60" Height="60" CornerRadius="30" HorizontalAlignment="Left"
+                            ClipToBounds="True"
+                            Background="{DynamicResource BondSurfaceAlt}">
+                        <Panel>
+                            <TextBlock pages:ChatAvatar.Name="{Binding SelectedThread.Title}" FontSize="19"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource BondSecondary}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image pages:ChatAvatar.Url="{Binding PeerAvatarUrl}" Stretch="UniformToFill" />
+                        </Panel>
+                    </Border>
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding DetailsTitle}" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DetailsSubtitle}" FontSize="12"
+                                   Foreground="{DynamicResource BondTextMuted}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Border Height="1" Background="{DynamicResource BondBorder}" Margin="0,2" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="文件" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}" />
+                        <TextBlock Grid.Column="1" Text="{Binding DetailsFilesCountText}" FontSize="11"
+                                   Foreground="{DynamicResource BondTextMuted}" />
+                    </Grid>
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled" Padding="10,0,10,10">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="本会话还没有文件" Classes="meta" Margin="8,8"
+                                   IsVisible="{Binding ShowDetailsFilesEmpty}" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding FilesInConversation}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:ChatMessage">
+                                    <Button Classes="searchrow"
+                                            Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).OpenAttachmentCommand}"
+                                            CommandParameter="{Binding}">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                            <Border Width="32" Height="32" CornerRadius="8"
+                                                    Background="{DynamicResource BondAccentFill}">
+                                                <mi:MaterialIcon Kind="FileDocumentOutline" IconSize="15"
+                                                                 Foreground="{DynamicResource BondAccentDeep}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}" FontSize="11.5"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource BondText}" />
+                                                <TextBlock Text="{Binding FileSizeText}" FontSize="10"
+                                                           Foreground="{DynamicResource BondTextMuted}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- ═════════════════ 发起会话（好友选择器，浮层） ═════════════════ -->
+        <Border Grid.ColumnSpan="3" Background="{DynamicResource BondScrim}" ZIndex="20"
+                IsVisible="{Binding IsPeerPickerOpen}">
+            <Border Width="460" MaxHeight="560" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="16"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" Padding="20">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="发起会话" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondText}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding ClosePeerPickerCommand}">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Classes="meta" Margin="0,4,0,12"
+                               Text="选择一个好友开始会话（已有会话会直接打开）" />
+
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="6">
+                            <StackPanel IsVisible="{Binding IsPeerPickerLoading}" Spacing="8">
+                                <Border Classes="skel" Height="52" />
+                                <Border Classes="skel" Height="52" />
+                                <Border Classes="skel" Height="52" />
+                            </StackPanel>
+
+                            <Border IsVisible="{Binding HasPeerPickerError}"
+                                    Background="{DynamicResource BondAccentFill}"
+                                    BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                                    CornerRadius="10" Padding="12,10">
+                                <TextBlock Text="{Binding PeerPickerError}" Classes="meta" TextWrapping="Wrap" />
+                            </Border>
+
+                            <ItemsControl ItemsSource="{Binding Peers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:ChatPeer">
+                                        <Button Classes="threadrow"
+                                                Command="{Binding $parent[ItemsControl].((vm:ChatPageViewModel)DataContext).StartChatCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" MinHeight="48">
+                                                <Border Classes="msgavatar" Width="36" Height="36"
+                                                        VerticalAlignment="Center">
+                                                    <Panel>
+                                                        <TextBlock pages:ChatAvatar.Name="{Binding DisplayName}" />
+                                                        <Image pages:ChatAvatar.Url="{Binding AvatarUrl}"
+                                                               Stretch="UniformToFill" />
+                                                    </Panel>
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Spacing="2"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="13.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource BondText}" />
+                                                    <TextBlock Text="{Binding Subtitle}" Classes="meta" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Grid.Row="3" Classes="hint" Margin="0,12,0,0"
+                               Text="会话与消息都来自服务器，不会在本机伪造。" />
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

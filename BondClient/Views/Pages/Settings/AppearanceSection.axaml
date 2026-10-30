@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.AppearanceSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-142：从 SettingsPage 拆出的「外观」分组（绑定名沿用原样） -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="h2" Text="外观" Margin="0,0,0,6" />
+
+                <Grid ColumnDefinitions="*,Auto" Height="50">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="暗色模式" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="暖黑配色，强调色保持品牌一致" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding IsDarkTheme}"
+                                  AutomationProperties.Name="暗色模式"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="切换后立即生效并记住选择" />
+                </Grid>
+
+                <Border Classes="rule" Margin="0,2" />
+
+                <!-- task-153：界面缩放（默认跟随系统；仅主窗口内容缩放，悬浮球保持原尺寸） -->
+                <Grid ColumnDefinitions="*,Auto" Height="54">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="界面缩放" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="{Binding UiScaleHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1" Width="132" Height="32" VerticalAlignment="Center"
+                              ItemsSource="{Binding UiScaleOptions}"
+                              SelectedIndex="{Binding UiScaleIndex, Mode=TwoWay}"
+                              AutomationProperties.Name="界面缩放"
+                              ToolTip.Tip="150% 时内容变大，可用滚动查看" />
+                </Grid>
+            </StackPanel>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>

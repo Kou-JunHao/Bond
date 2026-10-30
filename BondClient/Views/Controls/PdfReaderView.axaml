@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:Bond.Views.Controls"
+             x:Class="Bond.Views.Controls.PdfReaderView"
+             x:DataType="controls:PdfReaderView"
+             Focusable="True">
+
+    <!-- PDF 阅读器：连续滚动 + 缩放（适应宽度/百分比）+ 跳页 + 旋转。
+         只渲染视口 ±1 页（PdfPage.Bitmap 按需填充），关闭面板时由 PdfRenderer.Dispose 释放 PDFium 文档。 -->
+    <Grid RowDefinitions="Auto,*" Background="Transparent">
+
+        <!-- 工具栏 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" Margin="14,6,14,4">
+            <Button Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                    Click="OnZoomOut" ToolTip.Tip="缩小 (Ctrl+-)">
+                <mi:MaterialIcon Kind="MagnifyMinus" IconSize="14" />
+            </Button>
+            <TextBlock Grid.Column="1" x:Name="ZoomText" Text="100%" Classes="meta"
+                       MinWidth="58" TextAlignment="Center" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                    Click="OnZoomIn" ToolTip.Tip="放大 (Ctrl++)">
+                <mi:MaterialIcon Kind="MagnifyPlus" IconSize="14" />
+            </Button>
+            <Button Grid.Column="3" Classes="soft" Padding="10,4" Margin="6,0,0,0"
+                    Click="OnFitWidth" ToolTip.Tip="让页面宽度铺满阅读区">
+                <TextBlock Text="适应宽度" FontSize="11.5" />
+            </Button>
+            <Button Grid.Column="4" Classes="soft" Padding="10,4" Margin="4,0,0,0"
+                    Click="OnFitPage" ToolTip.Tip="让整页完整显示在阅读区内">
+                <TextBlock Text="适应页面" FontSize="11.5" />
+            </Button>
+            <TextBox Grid.Column="5" x:Name="JumpBox" Width="58" MinHeight="26" Margin="10,0,0,0"
+                     FontSize="11.5" TextAlignment="Center" Padding="4,2"
+                     PlaceholderText="页码"
+                     ToolTip.Tip="输入页码后按 Enter 跳转"
+                     KeyDown="OnJumpKeyDown" />
+            <TextBlock Grid.Column="7" x:Name="PageIndicator" Text="第 1 / 1 页" Classes="meta"
+                       VerticalAlignment="Center" Margin="0,0,10,0" />
+            <Button Grid.Column="8" Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                    Click="OnRotate" ToolTip.Tip="旋转 90°">
+                <mi:MaterialIcon Kind="RotateRight" IconSize="14" />
+            </Button>
+        </Grid>
+
+        <!-- 页面滚动区 -->
+        <ScrollViewer Grid.Row="1" x:Name="Scroller"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"
+                      Background="Transparent">
+            <ItemsControl x:Name="PagesHost" Margin="16,8,16,20">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="14" HorizontalAlignment="Center" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="controls:PdfPage">
+                        <Border Background="White" CornerRadius="4"
+                                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
+                                BoxShadow="0 2 10 0 #241B1A17">
+                            <Panel>
+                                <Image Source="{Binding Bitmap}" Stretch="Fill"
+                                       IsVisible="{Binding HasBitmap}" />
+                                <TextBlock Text="{Binding PlaceholderText}" Classes="meta"
+                                           IsVisible="{Binding !HasBitmap}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Panel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

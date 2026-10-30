@@ -1,0 +1,512 @@
+<Window x:Class="Bond.Views.LoginWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        Title="Bond"
+        Width="880" Height="560"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        WindowDecorations="None"
+        CanResize="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+    <Window.Resources>
+        <!--
+            表单列宽（唯一来源，登录/注册三步/找回三步共用）：
+            880×560 窗口、150% 缩放下实测输入框 467 物理像素 ≈ 311 逻辑像素，
+            落在产品要求的 311–340 区间；不要再改回 463 逻辑像素（用户反馈"太长"）。
+        -->
+        <x:Double x:Key="FormWidth">360</x:Double>
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="Button.mode">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0,0,0,2" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        </Style>
+        <Style Selector="Button.mode.active">
+            <Setter Property="Foreground" Value="{DynamicResource BondAccent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+        </Style>
+
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+            <Setter Property="Margin" Value="2,0,0,6" />
+        </Style>
+        <Style Selector="TextBox.field">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        </Style>
+        <Style Selector="Button.submit">
+            <Setter Property="Height" Value="40" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.link">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="20" />
+        </Style>
+        <Style Selector="Button.closebtn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.closebtn:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+
+        <Style Selector="Border.dot">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.dot.active">
+            <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+        </Style>
+        <Style Selector="Border.dot.done">
+            <Setter Property="Background" Value="{DynamicResource BondAccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+        </Style>
+        <Style Selector="TextBlock.stepnum">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        </Style>
+    </Window.Styles>
+
+    <Border Background="{DynamicResource BondBg}"
+            BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+            CornerRadius="16"
+            PointerPressed="OnRootPointerPressed">
+        <Grid ColumnDefinitions="*,520">
+
+            <!-- 左：品牌区（自适应，窄到 760 也不裁） -->
+            <Border Grid.Column="0" CornerRadius="16,0,0,16" ClipToBounds="True">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Offset="0" Color="#FFFDF2EE" />
+                        <GradientStop Offset="1" Color="#FFFBEAE3" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel VerticalAlignment="Center" Margin="32,0" Spacing="14">
+                    <Image Source="avares://Bond/Assets/logo.png" Width="48" Height="48"
+                           HorizontalAlignment="Left" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Bond" FontSize="27" FontWeight="Bold"
+                                   Foreground="{DynamicResource BondPrimary}" />
+                        <TextBlock Text="跨网络文件传输 · 工作区协作" FontSize="12.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondSecondary}" />
+                    </StackPanel>
+                    <Border Width="36" Height="3" CornerRadius="2"
+                            Background="{DynamicResource BondAccent}"
+                            HorizontalAlignment="Left" Margin="0,4,0,4" />
+                    <StackPanel Spacing="8" MaxWidth="260">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="CheckCircleOutline" IconSize="14"
+                                             Foreground="{DynamicResource BondAccent}" />
+                            <TextBlock Text="局域网直连，跨网自动中继" FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondSecondary}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="CheckCircleOutline" IconSize="14"
+                                             Foreground="{DynamicResource BondAccent}" />
+                            <TextBlock Text="工作区多人共享与配额管理" FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondSecondary}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="CheckCircleOutline" IconSize="14"
+                                             Foreground="{DynamicResource BondAccent}" />
+                            <TextBlock Text="断点续传与秒传" FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondSecondary}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- 右：表单区（内容自适应，880×560 不滚动不裁切） -->
+            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+                <Grid Grid.Row="0" Margin="28,18,20,0" ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                        <Button Name="LoginTab" Classes="mode active" Content="登录" Click="OnSelectLogin" />
+                        <Button Name="RegisterTab" Classes="mode" Content="注册" Click="OnSelectRegister" />
+                        <Button Classes="closebtn" Margin="20,0,0,0" Click="OnCloseClick" ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14"
+                                             Foreground="{DynamicResource BondSecondary}" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <ContentControl Grid.Row="1" Name="PageHost" Margin="28,10,28,6"
+                                VerticalAlignment="Center">
+                    <ContentControl.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.22"
+                                              Easing="CubicEaseOut" />
+                            <TransformOperationsTransition Property="RenderTransform"
+                                                          Duration="0:0:0.22" Easing="CubicEaseOut" />
+                        </Transitions>
+                    </ContentControl.Transitions>
+                    <Grid MaxWidth="{StaticResource FormWidth}" HorizontalAlignment="Center" MinWidth="0">
+                        <!-- ===================== 登录 ===================== -->
+                        <StackPanel Name="FormBody" Spacing="10">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="欢迎回来" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="登录以同步你的工作区与传输任务" FontSize="12.5"
+                                           Foreground="{DynamicResource BondSecondary}" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="用户名" />
+                                    <TextBox Name="UsernameBox" Classes="field" TabIndex="1"
+                                             PlaceholderText="请输入用户名" />
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="密码" />
+                                    <TextBox Name="PasswordBox" Classes="field" TabIndex="2"
+                                             PasswordChar="●" PlaceholderText="请输入密码" />
+                                    <Button Classes="link" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                            Click="OnForgotClick" ToolTip.Tip="找回密码">
+                                        <TextBlock Text="忘记密码？" FontSize="11.5"
+                                                   Foreground="{DynamicResource BondAccent}" />
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- 图形验证码（后端要求时出现；高度随内容自适应，不裁切） -->
+                            <StackPanel Name="CaptchaGroup" Spacing="6" IsVisible="False">
+                                <TextBlock Classes="label" Text="验证码" />
+                                <Grid ColumnDefinitions="*,108,42">
+                                    <TextBox Name="CaptchaBox" Classes="field" TabIndex="3"
+                                             PlaceholderText="请输入图中 4 位字符" />
+                                    <Border Grid.Column="1" Name="CaptchaBorder" Margin="8,0,8,0" Height="38"
+                                            CornerRadius="8" Background="{DynamicResource BondSurfaceAlt}"
+                                            ClipToBounds="True" Cursor="Hand" ToolTip.Tip="换一张"
+                                            PointerPressed="OnCaptchaBorderClick">
+                                        <Grid>
+                                            <Image Name="CaptchaImage" Stretch="Uniform" Margin="2" />
+                                            <TextBlock Name="CaptchaSkeleton" Text="加载中…" FontSize="10.5"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource BondTertiary}" />
+                                            <TextBlock Name="CaptchaRetry" Text="重试" FontSize="10.5"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       IsVisible="False"
+                                                       Foreground="{DynamicResource BondAccent}" />
+                                        </Grid>
+                                    </Border>
+                                    <Button Grid.Column="2" Name="CaptchaRefreshButton" Classes="outline"
+                                            Height="38" Width="42" Padding="0" ToolTip.Tip="换一张"
+                                            Click="OnRefreshCaptchaClick">
+                                        <mi:MaterialIcon Kind="Refresh" IconSize="15"
+                                                         Foreground="{DynamicResource BondSecondary}" />
+                                    </Button>
+                                </Grid>
+                                <Button Classes="link" HorizontalAlignment="Left" Click="OnRefreshCaptchaClick">
+                                    <TextBlock Text="看不清？换一张" FontSize="11"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                </Button>
+                            </StackPanel>
+
+                            <Border Height="20">
+                                <Border Name="ErrorBar" IsVisible="False">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="14"
+                                                         Foreground="{DynamicResource BondError}"
+                                                         VerticalAlignment="Center" />
+                                        <TextBlock Name="ErrorText" FontSize="11.5" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource BondError}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </Border>
+
+                            <Button Name="SubmitButton" Classes="submit primary" Click="OnSubmit">
+                                <Grid>
+                                    <TextBlock Name="SubmitText" Text="登录" FontSize="13" />
+                                    <TextBlock Name="SubmitBusy" Text="处理中…" FontSize="13" IsVisible="False" />
+                                </Grid>
+                            </Button>
+
+                            <TextBlock Name="HintText" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource BondTertiary}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- ===================== 注册（1-2-3 分步，复用找回密码 stepper） ===================== -->
+                        <StackPanel Name="RegisterPanel" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="创建账号" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Name="RegSubtitle" Text="第一步：填写账号与邮箱"
+                                           FontSize="12.5" Foreground="{DynamicResource BondSecondary}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Border Classes="dot active" Name="RegDot1">
+                                    <TextBlock Classes="stepnum" Text="1" />
+                                </Border>
+                                <Border Height="2" Width="44" Name="RegLine1"
+                                        Background="{DynamicResource BondBorder}" />
+                                <Border Classes="dot" Name="RegDot2">
+                                    <TextBlock Classes="stepnum" Text="2" />
+                                </Border>
+                                <Border Height="2" Width="44" Name="RegLine2"
+                                        Background="{DynamicResource BondBorder}" />
+                                <Border Classes="dot" Name="RegDot3">
+                                    <TextBlock Classes="stepnum" Text="3" />
+                                </Border>
+                            </StackPanel>
+
+                            <!-- 步骤 1：账号 -->
+                            <StackPanel Name="RegStep1" Spacing="10">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="用户名" />
+                                    <TextBox Name="RegUsernameBox" Classes="field" TabIndex="1"
+                                             PlaceholderText="3-32 位，登录用" />
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="邮箱" />
+                                    <TextBox Name="RegEmailBox" Classes="field" TabIndex="2"
+                                             PlaceholderText="用于接收验证码与找回密码" />
+                                </StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                                    <TextBox Name="RegEmailCodeBox" Classes="field" TabIndex="3" MaxLength="6"
+                                             PlaceholderText="6 位数字验证码" />
+                                    <Button Name="RegSendCodeButton" Grid.Column="1" Classes="outline"
+                                            Height="38" MinWidth="104" Margin="8,0,0,0" TabIndex="4"
+                                            Click="OnSendRegisterCode" Content="发送验证码" />
+                                </Grid>
+                                <TextBlock Name="RegCodeHint" FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource BondTertiary}" />
+                                <Border Height="20">
+                                    <Border Name="RegErrorBar" IsVisible="False">
+                                        <TextBlock Name="RegErrorText" FontSize="11.5" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource BondError}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </Border>
+                                <Button Name="RegStep1Next" Classes="submit primary" Click="OnRegNext1"
+                                        Content="下一步" />
+                            </StackPanel>
+
+                            <!-- 步骤 2：安全 -->
+                            <StackPanel Name="RegStep2" Spacing="10" IsVisible="False">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="密码" />
+                                    <TextBox Name="RegPasswordBox" Classes="field" TabIndex="1"
+                                             PasswordChar="●" PlaceholderText="至少 6 位" />
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="确认密码" />
+                                    <TextBox Name="RegPassword2Box" Classes="field" TabIndex="2"
+                                             PasswordChar="●" PlaceholderText="再次输入密码" />
+                                </StackPanel>
+                                <Border Height="20">
+                                    <Border Name="RegErrorBar2" IsVisible="False">
+                                        <TextBlock Name="RegErrorText2" FontSize="11.5" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource BondError}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </Border>
+                                <Button Name="RegStep2Next" Classes="submit primary" Click="OnRegNext2"
+                                        Content="下一步" />
+                                <Button Classes="link" HorizontalAlignment="Left" Click="OnRegBack1">
+                                    <TextBlock Text="← 上一步" FontSize="11.5"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                </Button>
+                            </StackPanel>
+
+                            <!-- 步骤 3：确认 -->
+                            <StackPanel Name="RegStep3" Spacing="10" IsVisible="False">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="label" Text="昵称（可选）" />
+                                    <TextBox Name="RegNicknameBox" Classes="field" TabIndex="1"
+                                             PlaceholderText="显示给其他成员的名字" />
+                                </StackPanel>
+                                <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8"
+                                        Padding="10,8">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Name="RegSummaryUser" FontSize="11.5"
+                                                   Foreground="{DynamicResource BondSecondary}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Name="RegSummaryEmail" FontSize="11.5"
+                                                   Foreground="{DynamicResource BondSecondary}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Border>
+                                <StackPanel Name="RegCaptchaGroup" Spacing="6" IsVisible="False">
+                                    <TextBlock Classes="label" Text="验证码" />
+                                    <Grid ColumnDefinitions="*,108,42">
+                                        <TextBox Name="RegCaptchaBox" Classes="field" TabIndex="2"
+                                                 PlaceholderText="请输入图中 4 位字符" />
+                                        <Border Grid.Column="1" Name="RegCaptchaBorder" Margin="8,0,8,0"
+                                                Height="38" CornerRadius="8"
+                                                Background="{DynamicResource BondSurfaceAlt}"
+                                                ClipToBounds="True" Cursor="Hand" ToolTip.Tip="换一张"
+                                                PointerPressed="OnRegCaptchaBorderClick">
+                                            <Grid>
+                                                <Image Name="RegCaptchaImage" Stretch="Uniform" Margin="2" />
+                                                <TextBlock Name="RegCaptchaSkeleton" Text="加载中…"
+                                                           FontSize="10.5" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource BondTertiary}" />
+                                                <TextBlock Name="RegCaptchaRetry" Text="重试" FontSize="10.5"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           IsVisible="False"
+                                                           Foreground="{DynamicResource BondAccent}" />
+                                            </Grid>
+                                        </Border>
+                                        <Button Grid.Column="2" Name="RegCaptchaRefreshButton" Classes="outline"
+                                                Height="38" Width="42" Padding="0" ToolTip.Tip="换一张"
+                                                Click="OnRefreshRegCaptchaClick">
+                                            <mi:MaterialIcon Kind="Refresh" IconSize="15"
+                                                             Foreground="{DynamicResource BondSecondary}" />
+                                        </Button>
+                                    </Grid>
+                                    <Button Classes="link" HorizontalAlignment="Left"
+                                            Click="OnRefreshRegCaptchaClick">
+                                        <TextBlock Text="看不清？换一张" FontSize="11"
+                                                   Foreground="{DynamicResource BondAccent}" />
+                                    </Button>
+                                </StackPanel>
+                                <Border Height="20">
+                                    <Border Name="RegErrorBar3" IsVisible="False">
+                                        <TextBlock Name="RegErrorText3" FontSize="11.5" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource BondError}"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                </Border>
+                                <Button Name="RegSubmitButton" Classes="submit primary" Click="OnSubmitRegister">
+                                    <Grid>
+                                        <TextBlock Name="RegSubmitText" Text="完成注册" FontSize="13" />
+                                        <TextBlock Name="RegSubmitBusy" Text="注册中…" FontSize="13"
+                                                   IsVisible="False" />
+                                    </Grid>
+                                </Button>
+                                <Button Classes="link" HorizontalAlignment="Left" Click="OnRegBack2">
+                                    <TextBlock Text="← 上一步" FontSize="11.5"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- ===================== 找回密码（沿用原 stepper） ===================== -->
+                        <StackPanel Name="ResetPanel" Spacing="12" IsVisible="False">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="找回密码" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Name="ResetSubtitle" Text="第一步：填写注册邮箱"
+                                           FontSize="12.5" Foreground="{DynamicResource BondSecondary}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Border Classes="dot active" Name="StepDot1">
+                                    <TextBlock Classes="stepnum" Text="1" />
+                                </Border>
+                                <Border Height="2" Width="44" Name="StepLine1"
+                                        Background="{DynamicResource BondBorder}" />
+                                <Border Classes="dot" Name="StepDot2">
+                                    <TextBlock Classes="stepnum" Text="2" />
+                                </Border>
+                                <Border Height="2" Width="44" Name="StepLine2"
+                                        Background="{DynamicResource BondBorder}" />
+                                <Border Classes="dot" Name="StepDot3">
+                                    <TextBlock Classes="stepnum" Text="3" />
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Name="ResetStep1" Spacing="6">
+                                <TextBlock Classes="label" Text="邮箱" />
+                                <TextBox Name="ResetEmailBox" Classes="field" TabIndex="1"
+                                         PlaceholderText="请输入注册邮箱" />
+                                <Button Name="ResetSendButton" Classes="outline" Height="38" Margin="0,8,0,0"
+                                        HorizontalAlignment="Stretch" Click="OnSendResetCode"
+                                        Content="发送验证码" />
+                                <TextBlock Name="ResetEmailHint" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Foreground="{DynamicResource BondTertiary}" />
+                            </StackPanel>
+
+                            <StackPanel Name="ResetStep2" Spacing="6" IsVisible="False">
+                                <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8"
+                                        Padding="10,8">
+                                    <TextBlock Name="ResetEmailEcho" FontSize="11.5"
+                                               Foreground="{DynamicResource BondSecondary}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Border>
+                                <TextBlock Classes="label" Text="验证码" Margin="0,8,0,0" />
+                                <TextBox Name="ResetCodeBox" Classes="field" TabIndex="1" MaxLength="6"
+                                         PlaceholderText="6 位数字验证码" />
+                                <Button Name="ResetNextButton" Classes="submit primary" Height="40" Margin="0,8,0,0"
+                                        Click="OnResetNextStep" Content="下一步" />
+                                <Button Classes="link" HorizontalAlignment="Left" Click="OnResetBackToStep1">
+                                    <TextBlock Text="← 重新填写邮箱" FontSize="11.5"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                </Button>
+                            </StackPanel>
+
+                            <StackPanel Name="ResetStep3" Spacing="6" IsVisible="False">
+                                <TextBlock Classes="label" Text="新密码" />
+                                <TextBox Name="ResetPasswordBox" Classes="field" TabIndex="1" PasswordChar="●"
+                                         PlaceholderText="至少 6 位" />
+                                <TextBlock Classes="label" Text="确认新密码" Margin="0,8,0,0" />
+                                <TextBox Name="ResetPassword2Box" Classes="field" TabIndex="2" PasswordChar="●"
+                                         PlaceholderText="再次输入新密码" />
+                                <Button Name="ResetSubmitButton" Classes="submit primary" Height="40"
+                                        Margin="0,8,0,0" Click="OnSubmitReset" Content="重置密码" />
+                                <Button Classes="link" HorizontalAlignment="Left" Click="OnResetBackToStep2">
+                                    <TextBlock Text="← 修改验证码" FontSize="11.5"
+                                               Foreground="{DynamicResource BondAccent}" />
+                                </Button>
+                            </StackPanel>
+
+                            <Border Height="20">
+                                <Border Name="ResetErrorBar" IsVisible="False">
+                                    <TextBlock Name="ResetErrorText" FontSize="11.5" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource BondError}"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                            </Border>
+
+                            <Button Classes="link" HorizontalAlignment="Center" Click="OnBackToLogin">
+                                <TextBlock Text="返回登录" FontSize="11.5"
+                                           Foreground="{DynamicResource BondAccent}" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </ContentControl>
+
+                <StackPanel Grid.Row="2" Spacing="2" Margin="28,0,28,14">
+                    <TextBlock Name="ServerText" FontSize="10.5"
+                               Foreground="{DynamicResource BondTertiary}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="登录状态使用 JWT，本地仅保存令牌" FontSize="10.5"
+                               Foreground="{DynamicResource BondTertiary}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

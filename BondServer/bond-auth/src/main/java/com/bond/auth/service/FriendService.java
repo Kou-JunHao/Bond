@@ -1,11 +1,13 @@
 package com.bond.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.bond.auth.mapper.DeviceMapper;
 import com.bond.auth.mapper.FriendshipMapper;
 import com.bond.auth.mapper.UserMapper;
 import com.bond.common.dto.FriendDTO;
 import com.bond.common.dto.FriendRequestDTO;
 import com.bond.common.dto.UserSearchDTO;
+import com.bond.common.entity.Device;
 import com.bond.common.entity.Friendship;
 import com.bond.common.entity.User;
 import com.bond.common.exception.BusinessException;
@@ -24,6 +26,7 @@ public class FriendService {
 
     private final FriendshipMapper friendshipMapper;
     private final UserMapper userMapper;
+    private final DeviceMapper deviceMapper;
     private final ConfigService configService;
 
     private static final int STATUS_PENDING = 0;
@@ -195,6 +198,13 @@ public class FriendService {
         dto.setStatus(f.getStatus());
         dto.setCreatedAt(f.getCreatedAt() != null
                 ? f.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : null);
+
+        long onlineCount = deviceMapper.selectCount(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getUserId, u.getId())
+                        .eq(Device::getIsOnline, true));
+        dto.setOnline(onlineCount > 0);
+
         return dto;
     }
 }

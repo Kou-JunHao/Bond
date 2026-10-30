@@ -34,21 +34,73 @@ public class CaptchaService {
         failCounts.entrySet().removeIf(e -> now - e.getValue().timestamp > FAIL_COUNT_EXPIRE_MS);
     }
 
-    public boolean needsCaptcha(String ip) {
-        FailEntry entry = failCounts.get(ip);
+    /**
+     * 是否需要验证码（task-68）。
+     *
+     * <p>计数键分两层：{@code ip}（同一出口 IP 的聚合，防撞库）与 {@code ip|username}
+     * （精确到账号，避免同一出口/办公网里别人的失败把当前用户拖下水）。
+     * 登录接口总是带 username，因此普通用户只看自己的复合键；{@code /captcha/check}
+     * 未带 username 时退回 IP 聚合键。</p>
+     */
+    public boolean needsCaptcha(String ip, String username) {
+        if (ip == null || ip.isBlank()) {
+            return false;
+        }
+        String userKey = userKey(ip, username);
+        if (userKey != null) {
+            return exceeds(userKey);
+        }
+        return exceeds(ip);
+    }
+
+    public void recordFail(String ip, String username) {
+        if (ip == null || ip.isBlank()) {
+            return;
+        }
+        bump(ip);
+        String userKey = userKey(ip, username);
+        if (userKey != null) {
+            bump(userKey);
+        }
+    }
+
+    /** 登录成功后只清当前账号的复合键；IP 聚合键保留到过期，避免攻击者用一次成功重置同 IP 的防护。 */
+    public void clearFails(String ip, String username) {
+        if (ip == null || ip.isBlank()) {
+            return;
+        }
+        String userKey = userKey(ip, username);
+        if (userKey != null) {
+            failCounts.remove(userKey);
+        }
+    }
+
+    /** 登录成功但未带用户名时的兜底清理（仅供兼容调用，正常路径应传用户名）。 */
+    public void clearFails(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return;
+        }
+        failCounts.remove(ip);
+    }
+
+    private boolean exceeds(String key) {
+        FailEntry entry = failCounts.get(key);
         return entry != null && entry.count.get() >= MAX_ATTEMPTS;
     }
 
-    public void recordFail(String ip) {
-        failCounts.compute(ip, (k, v) -> {
+    private void bump(String key) {
+        failCounts.compute(key, (k, v) -> {
             if (v == null) return new FailEntry();
             v.count.incrementAndGet();
             return v;
         });
     }
 
-    public void clearFails(String ip) {
-        failCounts.remove(ip);
+    private static String userKey(String ip, String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        return ip + "|" + username.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     public CaptchaResult generate() {

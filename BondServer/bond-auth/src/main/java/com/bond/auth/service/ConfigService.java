@@ -5,6 +5,7 @@ import com.bond.auth.mapper.SystemConfigMapper;
 import com.bond.common.entity.SystemConfig;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,6 +23,8 @@ public class ConfigService {
         refreshCache();
     }
 
+    // Refresh cache every 30 seconds to pick up config changes from bond-transfer
+    @Scheduled(fixedRate = 30000)
     public void refreshCache() {
         List<SystemConfig> configs = configMapper.selectList(null);
         cache.clear();
@@ -34,10 +37,20 @@ public class ConfigService {
         return cache.getOrDefault(key, defaultValue);
     }
 
+    public String get(String key) {
+        return cache.get(key);
+    }
+
     public int getInt(String key, int defaultValue) {
         String v = cache.get(key);
         if (v == null) return defaultValue;
         try { return Integer.parseInt(v); } catch (NumberFormatException e) { return defaultValue; }
+    }
+
+    public long getLong(String key, long defaultValue) {
+        String v = cache.get(key);
+        if (v == null) return defaultValue;
+        try { return Long.parseLong(v); } catch (NumberFormatException e) { return defaultValue; }
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {

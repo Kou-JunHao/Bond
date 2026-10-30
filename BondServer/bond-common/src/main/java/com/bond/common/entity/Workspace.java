@@ -16,6 +16,8 @@ public class Workspace {
     private Long ownerId;
     private Long maxSize;
     private Long usedSize;
+    /** 工作区类型：team / personal，见 {@link com.bond.common.enums.WorkspaceType}。 */
+    private String type;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

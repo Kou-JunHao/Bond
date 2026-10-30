@@ -1,0 +1,224 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.AccountSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-142：从 SettingsPage 拆出的「账户与安全」分组（绑定名沿用原样） -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <!-- 账户与设备 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="h2" Text="账户与设备" />
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="设备名称" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="其他设备看到的名字" />
+                    </StackPanel>
+                    <TextBox Grid.Column="1" Text="{Binding DeviceName}" Height="34" MinHeight="34"
+                             VerticalContentAlignment="Center"
+                             ToolTip.Tip="修改后点下方「保存设置」生效" />
+                </Grid>
+
+                <Border Classes="rule" Margin="0" />
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="账户" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="已登录的 Bond 账号" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                                VerticalAlignment="Center">
+                        <Border Classes="avatar" Width="26" Height="26" CornerRadius="13"
+                                Background="{DynamicResource BondAccentSoft}">
+                            <TextBlock Text="{Binding AccountInitial}" FontSize="10.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource BondAccent}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding AccountName}" FontSize="12.5"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="邮箱" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="用于验证码登录与找回密码" />
+                    </StackPanel>
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding EmailDisplay}" FontSize="12.5"
+                                   VerticalAlignment="Center"
+                                   ToolTip.Tip="来自 /api/auth/me" />
+                        <Button Grid.Column="1" Classes="soft" Padding="12,6"
+                                Command="{Binding OpenEmailChangeCommand}" Content="修改邮箱" />
+                    </Grid>
+                </Grid>
+
+                <Border IsVisible="{Binding IsEmailChangeOpen}"
+                        Background="{DynamicResource BondSurfaceAlt}" CornerRadius="10"
+                        Padding="12,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="修改邮箱（双认证）" FontSize="12" FontWeight="Medium" />
+
+                        <StackPanel IsVisible="{Binding !IsEmailConfirmStep}" Spacing="8">
+                            <TextBlock Classes="meta"
+                                       Text="第 1 步：验证当前密码并填写新邮箱，验证码会发送到新邮箱。" />
+                            <TextBox Text="{Binding CurrentPassword}" PasswordChar="●"
+                                     Height="34" MinHeight="34" PlaceholderText="当前密码"
+                                     VerticalContentAlignment="Center" FontSize="12" />
+                            <TextBox Text="{Binding NewEmail}" Height="34" MinHeight="34"
+                                     PlaceholderText="新邮箱地址"
+                                     VerticalContentAlignment="Center" FontSize="12" />
+                            <Button Classes="primary" HorizontalAlignment="Left" Padding="14,6"
+                                    Command="{Binding RequestEmailChangeCommand}"
+                                    Content="发送验证码到新邮箱" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding IsEmailConfirmStep}" Spacing="8">
+                            <TextBlock Classes="meta"
+                                       Text="第 2 步：输入发送到新邮箱的 6 位验证码。" />
+                            <TextBox Text="{Binding EmailChangeCode}" MaxLength="6"
+                                     Height="34" MinHeight="34" PlaceholderText="6 位数字验证码"
+                                     VerticalContentAlignment="Center" FontSize="12" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Padding="14,6"
+                                        Command="{Binding ConfirmEmailChangeCommand}"
+                                        Content="确认修改" />
+                                <Button Classes="outline" Padding="14,6"
+                                        Command="{Binding CancelEmailChangeCommand}"
+                                        Content="取消" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding EmailChangeHint}" FontSize="11.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondSecondary}" />
+                        <Button Classes="ghosticon" Padding="0" MinWidth="0" MinHeight="18"
+                                HorizontalAlignment="Left"
+                                Command="{Binding CancelEmailChangeCommand}"
+                                IsVisible="{Binding !IsEmailConfirmStep}">
+                            <TextBlock Text="收起" FontSize="11"
+                                       Foreground="{DynamicResource BondAccent}" />
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="rule" Margin="0" />
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="设备码" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="对方可凭此设备码直接发起传输" />
+                    </StackPanel>
+                    <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto">
+                        <Border Background="{DynamicResource BondSurface}" CornerRadius="8"
+                                Height="32" Padding="12,0" VerticalAlignment="Center"
+                                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                            <TextBlock Text="{Binding DeviceCode}" FontSize="12.5"
+                                       Classes="settingsmono"
+                                       FontWeight="Medium" VerticalAlignment="Center" />
+                        </Border>
+                        <Button Grid.Column="1" Classes="ghosticon" Margin="8,0,0,0" Padding="8,5"
+                                MinHeight="32" IsEnabled="False"
+                                ToolTip.Tip="剪贴板 API 迁移中，复制功能暂不可用">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <mi:MaterialIcon Kind="ContentCopy" IconSize="12" />
+                                <TextBlock Text="复制" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </suki:GlassCard>
+
+        <!-- 修改密码（task-153）：三态反馈在行内，不弹窗、不强制登出 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="1">
+                    <TextBlock Classes="h2" Text="修改密码" />
+                    <TextBlock Classes="meta" Text="修改成功后当前登录不会失效，下次登录请使用新密码。" />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <TextBlock Text="当前密码" FontSize="12.5" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PasswordOld}" PasswordChar="●"
+                             Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                             PlaceholderText="当前密码"
+                             AutomationProperties.Name="当前密码" />
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <TextBlock Text="新密码" FontSize="12.5" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PasswordNew}" PasswordChar="●"
+                             Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                             PlaceholderText="至少 6 位"
+                             AutomationProperties.Name="新密码" />
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <TextBlock Text="确认新密码" FontSize="12.5" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PasswordConfirm}" PasswordChar="●"
+                             Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                             PlaceholderText="再输入一次新密码"
+                             AutomationProperties.Name="确认新密码" />
+                </Grid>
+
+                <TextBlock Text="{Binding PasswordHint}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource BondError}"
+                           IsVisible="{Binding PasswordHintIsError}" />
+                <TextBlock Text="{Binding PasswordHint}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource BondSuccess}"
+                           IsVisible="{Binding !PasswordHintIsError}" />
+
+                <Button Classes="primary" HorizontalAlignment="Right" Padding="18,7"
+                        Command="{Binding ChangePasswordCommand}"
+                        IsEnabled="{Binding CanChangePassword}"
+                        AutomationProperties.Name="修改密码">
+                    <TextBlock Text="{Binding ChangePasswordButtonText}" FontSize="12.5"
+                               Foreground="{DynamicResource BondOnAccent}" />
+                </Button>
+            </StackPanel>
+        </suki:GlassCard>
+
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="退出登录" FontSize="12.5" FontWeight="Medium" />
+                    <TextBlock Classes="meta" Text="清除本机登录凭据并回到登录页" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="soft" Padding="12,6" VerticalAlignment="Center"
+                        ToolTip.Tip="需要二次确认">
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedRight">
+                            <StackPanel Spacing="10" Width="220">
+                                <TextBlock Text="确认退出当前账号？" FontSize="12.5" FontWeight="Medium" />
+                                <TextBlock Text="本机保存的登录凭据会被清除，需要重新登录才能同步数据。"
+                                           FontSize="11.5" Foreground="{DynamicResource BondSecondary}"
+                                           TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <Button Classes="soft" Padding="10,5">
+                                        <TextBlock Text="取消" FontSize="11.5" />
+                                    </Button>
+                                    <Button Classes="primary" Padding="10,5"
+                                            Command="{Binding SignOutCommand}">
+                                        <TextBlock Text="退出登录" FontSize="11.5" Foreground="{DynamicResource BondOnAccent}" />
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <mi:MaterialIcon Kind="Logout" IconSize="13"
+                                         Foreground="{DynamicResource BondError}" />
+                        <TextBlock Text="退出登录" FontSize="12"
+                                   Foreground="{DynamicResource BondError}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>

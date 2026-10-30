@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.TransferSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-142：从 SettingsPage 拆出的「传输与下载」分组（绑定名沿用原样）
+         task-150：按用户要求删掉「应用下载」整块（设置页不再分发应用安装包）。 -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <!-- 下载目录 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="h2" Text="下载目录" Margin="0,0,0,6" />
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="下载目录" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="文件页下载按钮保存到这里" />
+                    </StackPanel>
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto">
+                        <TextBox Text="{Binding DownloadDirectory}" Height="34" MinHeight="34"
+                                 VerticalContentAlignment="Center" FontSize="12"
+                                 ToolTip.Tip="本地保存路径" />
+                        <Button Grid.Column="1" Classes="soft" Margin="8,0,0,0" Padding="12,6"
+                                Command="{Binding BrowseDownloadFolderCommand}"
+                                ToolTip.Tip="选择下载目录">
+                            <TextBlock Text="选择" FontSize="12" />
+                        </Button>
+                        <Button Grid.Column="2" Classes="ghosticon" Margin="6,0,0,0" Padding="8,5"
+                                MinHeight="32" Command="{Binding OpenDownloadFolderCommand}"
+                                ToolTip.Tip="在资源管理器中打开">
+                            <mi:MaterialIcon Kind="FolderOpen" IconSize="13" />
+                        </Button>
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </suki:GlassCard>
+
+        <!-- 行为 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="h2" Text="行为" Margin="0,0,0,6" />
+
+                <Grid ColumnDefinitions="*,Auto" Height="50">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="传输完成时通知" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="在悬浮球上显示完成提示" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnTransfer}"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="随「保存设置」一起落盘" />
+                </Grid>
+
+                <Border Classes="rule" Margin="0" />
+
+                <Grid ColumnDefinitions="*,Auto" Height="50">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="开机自动启动" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="写入当前用户的启动项（真正生效）" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartWithWindows}"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="保存时写入 HKCU\...\Run" />
+                </Grid>
+
+                <Border Classes="rule" Margin="0" />
+
+                <Grid ColumnDefinitions="*,Auto" Height="50">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="允许局域网设备发现我" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="关闭后只能通过设备码或云端传输" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowLanDiscovery}"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="保存后立即生效：开启时通过 UDP 组播发现同一局域网、同一账号的设备" />
+                </Grid>
+            </StackPanel>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,244 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             x:Class="Bond.Views.Pages.DevicesPage"
+             x:DataType="vm:DevicesPageViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*" Margin="24,18,24,20">
+
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Spacing="3">
+                <TextBlock Classes="h1" Text="设备" />
+                <TextBlock Classes="sub" Text="登录同一账号的设备会出现在这里；在线即可互发文件" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                                IsVisible="{Binding IsScanning}">
+                        <suki:Loading LoadingStyle="Pellets" Width="26" Height="18" />
+                        <TextBlock Classes="meta" Text="正在刷新…" VerticalAlignment="Center" />
+                    </StackPanel>
+                <Button Classes="soft" Command="{Binding RefreshCommand}"
+                        ToolTip.Tip="重新拉取云端设备列表">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="Sync" IconSize="13" />
+                        <TextBlock Text="刷新" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- task-160 A：局域网发现（UDP 组播，不经服务端；云端设备行在下方） -->
+        <Border Grid.Row="1" Margin="0,0,0,14" Padding="14,12" CornerRadius="10"
+                Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                BorderThickness="1">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <mi:MaterialIcon Kind="Wifi" IconSize="14"
+                                         Foreground="{DynamicResource BondAccent}" />
+                        <TextBlock Text="局域网设备" FontSize="12.5" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <Border Background="{DynamicResource BondAccentSoft}" CornerRadius="4" Padding="6,1">
+                            <TextBlock Text="{Binding LanCountText}" FontSize="10.5"
+                                       Foreground="{DynamicResource BondAccent}" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding LanStatusText}" Classes="meta"
+                               Margin="10,0" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <Border Grid.Column="2" Background="{DynamicResource BondSurfaceAlt}"
+                            CornerRadius="5" Padding="6,2" VerticalAlignment="Center"
+                            ToolTip.Tip="A 阶段先做设备发现；局域网直连传输随 B 阶段开放">
+                        <TextBlock Text="直连发送待开放" FontSize="9.5"
+                                   Foreground="{DynamicResource BondTertiary}" />
+                    </Border>
+                </Grid>
+
+                <!-- 发现到的设备（12s 无心跳自动消失） -->
+                <ItemsControl ItemsSource="{Binding LanPeers}" IsVisible="{Binding HasLanPeers}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LanPeerItem">
+                            <Border Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8"
+                                    Padding="10,8" MinWidth="250">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Width="30" Height="30" CornerRadius="15"
+                                            Background="{DynamicResource BondAccentSoft}">
+                                        <TextBlock Text="{Binding Initial}" FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BondAccent}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="9,0,0,0" Spacing="2"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Meta}" Classes="meta" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2" Background="#1A22A06B" CornerRadius="4"
+                                            Padding="6,1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <Ellipse Width="5" Height="5" Fill="#22A06B"
+                                                     VerticalAlignment="Center" />
+                                            <TextBlock Text="局域网" FontSize="9.5"
+                                                       Foreground="#22A06B" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <Panel>
+                <!-- 设备卡片 -->
+                <ItemsControl ItemsSource="{Binding Peers}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemWidth="300" ItemSpacing="14" LineSpacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:DevicePeer">
+                            <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" IsInteractive="True" Padding="16" Height="156">
+                                <Grid RowDefinitions="Auto,*,Auto">
+
+                                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                                        <Border Classes="avatar" Width="40" Height="40" CornerRadius="20"
+                                                Background="{DynamicResource BondAccentSoft}">
+                                            <TextBlock Text="{Binding Initial}" FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource BondAccent}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center"
+                                                    Spacing="3">
+                                            <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Ip}" Classes="meta" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Background="{DynamicResource BondSurface}"
+                                                CornerRadius="5" Padding="6,2" VerticalAlignment="Top">
+                                            <TextBlock Text="{Binding Platform}" FontSize="9.5"
+                                                       Foreground="{DynamicResource BondSecondary}" />
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 在线状态只读服务端 isOnline（task-35：心跳维护，不用本地时间推算） -->
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8"
+                                                VerticalAlignment="Center">
+                                        <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                 Fill="{Binding StatusBrush}" />
+                                        <TextBlock Text="{Binding StatusText}" Classes="meta"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding LastSeenText}" Classes="meta"
+                                                   VerticalAlignment="Center" IsVisible="{Binding !IsOnline}" />
+                                        <!-- 本机行：服务端设备行 id == 本机登记 id -->
+                                        <Border Background="{DynamicResource BondAccentSoft}"
+                                                CornerRadius="4" Padding="5,1"
+                                                IsVisible="{Binding IsCurrentDevice}"
+                                                ToolTip.Tip="这台就是当前正在使用的设备">
+                                            <TextBlock Text="当前设备" FontSize="9.5"
+                                                       Foreground="{DynamicResource BondAccent}" />
+                                        </Border>
+                                        <Border Background="{DynamicResource BondWarning}" Opacity="0.15"
+                                                CornerRadius="4" Padding="5,1" IsVisible="{Binding RequiresPassword}">
+                                            <TextBlock Text="需密码" FontSize="9.5"
+                                                       Foreground="{DynamicResource BondWarning}" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+                                        <Button Classes="ghosticon" Padding="10,6" HorizontalAlignment="Left"
+                                                IsEnabled="False"
+                                                ToolTip.Tip="设备详情（在线状态 / 传输记录）下一批实现">
+                                            <TextBlock Text="详情" FontSize="12" />
+                                        </Button>
+                                        <Button Grid.Column="1" Classes="primary" Padding="14,6"
+                                                IsEnabled="{Binding IsOnline}" Click="OnSendClick"
+                                                ToolTip.Tip="选择本机文件并发送到该设备">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <mi:MaterialIcon Kind="Upload" IconSize="12" Foreground="{DynamicResource BondOnAccent}" />
+                                                <TextBlock Text="发送文件" FontSize="12" Foreground="{DynamicResource BondOnAccent}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <!-- task-35：离线设备可移除（本机行不显示；本机不可移除由 VM 兜底提示） -->
+                                        <Button Grid.Column="2" Classes="ghosticon" Padding="8,6" Margin="6,0,0,0"
+                                                IsVisible="{Binding !IsOnline}" Click="OnRemoveClick"
+                                                ToolTip.Tip="从设备列表移除这台离线设备">
+                                            <TextBlock Text="移除" FontSize="12"
+                                                       Foreground="{DynamicResource BondError}" />
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                            </suki:GlassCard>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- task-43：失败态（不要画成空态） -->
+                <Border IsVisible="{Binding HasError}" VerticalAlignment="Top"
+                        HorizontalAlignment="Stretch" Margin="12,8,12,0" Padding="10,8" CornerRadius="8"
+                        Background="{DynamicResource BondSurfaceAlt}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="14"
+                                         Foreground="{DynamicResource BondError}"
+                                         VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding ErrorText}" FontSize="11.5"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                   Margin="8,0,10,0" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Classes="soft" Command="{Binding RefreshCommand}"
+                                Padding="14,0" MinHeight="32" ToolTip.Tip="重新扫描设备">
+                            <TextBlock Text="重试" FontSize="11.5" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- 空状态 -->
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                            Margin="0,80,0,0" IsVisible="{Binding IsEmpty}">
+                    <Border Width="56" Height="56" CornerRadius="28"
+                            Background="{DynamicResource BondSurface}">
+                        <mi:MaterialIcon Kind="Devices" IconSize="22"
+                                       Foreground="{DynamicResource BondTertiary}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="还没有设备" FontSize="13" FontWeight="Medium"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Classes="meta" Text="在两台机器上同时登录同一账号，设备会出现在这里"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Panel>
+        </ScrollViewer>
+
+        <!-- task-35：移除离线设备的二次确认 -->
+        <Border Grid.RowSpan="3" IsVisible="{Binding IsRemoveConfirmOpen}" Background="#33000000">
+            <Border Width="400" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                    BorderThickness="1" CornerRadius="12" Padding="18" BoxShadow="0 12 32 0 #33000000">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="移除这台设备？" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Classes="body" TextWrapping="Wrap" FontSize="12"
+                               Text="{Binding RemoveConfirmText}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelRemoveCommand}" />
+                        <Button Classes="primary" Content="移除" Background="#C0392B"
+                                Command="{Binding ConfirmRemoveCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

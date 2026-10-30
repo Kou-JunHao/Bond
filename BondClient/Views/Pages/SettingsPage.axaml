@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:settings="using:Bond.Views.Pages.Settings"
+             x:Class="Bond.Views.Pages.SettingsPage"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <UserControl.Resources>
+        <!-- task-154：内容最大宽度提到具名资源，避免魔法数散落（RootGrid 与窄屏判定共用同一口径）。 -->
+        <x:Double x:Key="SettingsContentMaxWidth">1360</x:Double>
+    </UserControl.Resources>
+
+    <!-- task-154：设置页 = 左侧分组导航（220 DIP 固定）+ 右侧单组内容（独立滚动）。
+         六组（个人资料 / 账户与安全 / 外观 / 传输与下载 / 挂载与网络 / 关于与更新）常驻同一滚动容器，
+         点击导航平滑滚动到锚点并同步高亮；窄于 1020 DIP 时左栏折叠为顶部横向 chip。
+         卡片宽度由 SectionsStack 的 MaxWidth=1040 + 各 section 根 Stretch 控制。 -->
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,*" Margin="24,18,24,18"
+          MaxWidth="{StaticResource SettingsContentMaxWidth}" HorizontalAlignment="Center">
+        <StackPanel Grid.Row="0" Spacing="3" Margin="0,0,0,2">
+            <TextBlock Classes="h1" Text="设置" />
+            <TextBlock Classes="sub" Text="设备、账户、服务器与传输行为" />
+        </StackPanel>
+
+        <Grid x:Name="BodyGrid" Grid.Row="1" ColumnDefinitions="220,*" RowDefinitions="*" Margin="0,14,0,0">
+            <!-- 导航：宽屏竖排吸顶 220 DIP，窄窗口（内容区 <1020）由 code-behind 折叠为顶部横向 chip -->
+            <ScrollViewer x:Name="NavHost" Grid.Row="0" Grid.Column="0"
+                          VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch"
+                          Margin="0,0,14,0" KeyDown="OnNavKeyDown">
+                <StackPanel x:Name="NavPanel" Spacing="2">
+                    <Button x:Name="NavProfile" Classes="settingsnav" Tag="0" Click="OnNavClick" Content="个人资料"
+                            AutomationProperties.Name="个人资料" />
+                    <Button x:Name="NavAccount" Classes="settingsnav" Tag="1" Click="OnNavClick" Content="账户与安全"
+                            AutomationProperties.Name="账户与安全" />
+                    <Button x:Name="NavAppearance" Classes="settingsnav" Tag="2" Click="OnNavClick" Content="外观"
+                            AutomationProperties.Name="外观" />
+                    <Button x:Name="NavTransfer" Classes="settingsnav" Tag="3" Click="OnNavClick" Content="传输与下载"
+                            AutomationProperties.Name="传输与下载" />
+                    <Button x:Name="NavNetwork" Classes="settingsnav" Tag="4" Click="OnNavClick" Content="挂载与网络"
+                            AutomationProperties.Name="挂载与网络" />
+                    <Button x:Name="NavAbout" Classes="settingsnav" Tag="5" Click="OnNavClick" Content="关于与更新"
+                            AutomationProperties.Name="关于与更新" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid x:Name="ContentHost" Grid.Row="0" Grid.Column="1" RowDefinitions="*,Auto">
+                <ScrollViewer x:Name="ContentScroll" Grid.Row="0" VerticalScrollBarVisibility="Auto"
+                              HorizontalContentAlignment="Stretch"
+                              ScrollChanged="OnContentScrollChanged">
+                    <StackPanel x:Name="SectionsStack" MaxWidth="1040" HorizontalAlignment="Center" Spacing="0">
+
+                        <!-- task-153：个人资料（昵称 / 账号 / 设备码） -->
+                        <StackPanel x:Name="GroupProfile" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="个人资料" />
+                                <TextBlock Classes="meta" Text="头像、昵称、账号与设备码" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:ProfileSection />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Group0" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="账户与安全" />
+                                <TextBlock Classes="meta" Text="设备名、邮箱验证与密码、退出登录" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:AccountSection />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Group1" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="外观" />
+                                <TextBlock Classes="meta" Text="主题与界面偏好" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:AppearanceSection />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Group2" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="传输与下载" />
+                                <TextBlock Classes="meta" Text="下载目录与传输行为" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:TransferSection />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Group3" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="挂载与网络" />
+                                <TextBlock Classes="meta" Text="服务器地址、WebDAV 挂载与接入指南" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:NetworkSection />
+                        </StackPanel>
+
+                        <StackPanel x:Name="Group4" Spacing="12" Margin="0,0,0,2">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="关于与更新" />
+                                <TextBlock Classes="meta" Text="版本信息、更新检查与开源许可" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:AboutSection />
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 页脚固定：不随内容滚动丢失 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,10,0,6">
+                    <Button Classes="primary" Command="{Binding SaveCommand}" Padding="18,7"
+                            ToolTip.Tip="保存设备名、下载目录与行为开关">
+                        <TextBlock Text="保存设置" FontSize="12.5" Foreground="{DynamicResource BondOnAccent}" />
+                    </Button>
+                    <Button Classes="soft" Command="{Binding OpenDataFolderCommand}" Padding="14,7"
+                            ToolTip.Tip="打开 %LocalAppData%\Bond">
+                        <TextBlock Text="打开数据目录" FontSize="12.5" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,77 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        右键菜单 / 下拉子菜单的统一样式。
+        之前全项目没有一条 ContextMenu 样式，用的是 Avalonia 默认直角弹层，
+        与应用的圆角卡片 + 暖色强调风格不一致。
+        颜色全部走 Bond* 令牌，明暗两套主题自动适配。
+    -->
+
+    <!-- ══ 菜单容器 ══ -->
+    <Style Selector="ContextMenu">
+        <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="4" />
+        <Setter Property="MinWidth" Value="176" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- 模板内的圆角与内边距需要打到 Border 上 -->
+    <Style Selector="ContextMenu /template/ Border#PART_Border">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="4" />
+    </Style>
+    <Style Selector="ContextMenu /template/ Border">
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+
+    <!-- ══ 菜单项 ══ -->
+    <Style Selector="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource BondAccentSoft}" />
+    </Style>
+    <Style Selector="MenuItem:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+
+    <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+    </Style>
+
+    <!-- 禁用项（例如"附近无在线设备"）保持可读但明显变淡 -->
+    <Style Selector="MenuItem:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource BondTextMuted}" />
+        <Setter Property="Opacity" Value="0.7" />
+    </Style>
+
+    <!-- 图标与文字间距 -->
+    <Style Selector="MenuItem /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- ══ 分隔线 ══ -->
+    <Style Selector="MenuItem Separator">
+        <Setter Property="Background" Value="{DynamicResource BondBorder}" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="8,4" />
+    </Style>
+
+</Styles>

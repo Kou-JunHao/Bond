@@ -1,0 +1,630 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia">
+
+    <!--
+      排版与语义样式。
+      重要：这里显式定义主/次按钮样式，不依赖第三方库的类名语义——
+      之前用 SukiUI 的 Classes="Accent" 并未生效，导致白字落在浅色底上。
+    -->
+
+    <!-- task-150：全局字体改为 MiSans（App.axaml 的 BondUIFont；含系统回退链）。
+         下面 TextBlock 覆盖与 Window 兜底都指向同一个资源，图标字体（Material.Icons）
+         由控件自己显式指定 FontFamily，不受影响。 -->
+    <Style Selector="Window">
+        <Setter Property="FontFamily" Value="{DynamicResource BondUIFont}" />
+    </Style>
+
+    <!-- 只设字体族，不覆盖前景色：前景色交给 SukiUI 主题与各处显式设置，
+         否则会压平禁用态 / 强调态 / 卡片内的语义色（这是之前"字体颜色异常"的根因）。 -->
+    <Style Selector="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource BondUIFont}" />
+    </Style>
+
+    <!--
+        全局输入框基线（task-175）：用户反馈「应用内大部分输入框的文字上下被截断」。
+        根因是 SukiUI 默认 TextBox 模板自带上下padding，叠加页面里写死的 Height="32/34"
+        后内容区高度 < 行高（13px 字约 19–20 DIP），字形被裁。
+        修法：全局把竖直 padding 收成 0（高度交给 MinHeight），单行一律垂直居中；
+        需要呼吸感的多行输入框在行内显式写 Padding + VerticalContentAlignment="Top"。
+        这里必须留在 Typography.axaml（在 SukiTheme 之后加载），否则会被主题样式盖回。
+    -->
+    <Style Selector="TextBox">
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.h1">
+        <Setter Property="FontSize" Value="21" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="-0.2" />
+    </Style>
+
+    <Style Selector="TextBlock.h2">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.sub">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+    </Style>
+
+    <Style Selector="TextBlock.body">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style Selector="TextBlock.meta">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- 工作区成员角色文案：owner=强调色 / 管理员=中等强调 / 成员=弱化 -->
+    <Style Selector="TextBlock.roletext.owner">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccent}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.roletext.admin">
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="TextBlock.hint">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource BondTertiary}" />
+    </Style>
+
+    <Style Selector="TextBlock.metric">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="-0.4" />
+    </Style>
+
+        <!-- ══════════════════════════════════════════════════════════
+         按钮：颜色只画一层。
+         ContentPresenter 恒为透明 —— 否则 SukiUI 模板的悬停层会和
+         Button.Background 叠加，出现半透明"虚影"。
+         ══════════════════════════════════════════════════════════ -->
+
+    <Style Selector="Button.primary, Button.soft, Button.outline, Button.ghosticon, Button.tab">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.primary /template/ ContentPresenter,
+                     Button.soft /template/ ContentPresenter,
+                     Button.outline /template/ ContentPresenter,
+                     Button.ghosticon /template/ ContentPresenter,
+                     Button.tab /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="9" />
+    </Style>
+
+    <!-- 主按钮 -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondOnAccent}" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.primary:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+    <Style Selector="Button.primary:pressed">
+        <Setter Property="Background" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+    <Style Selector="Button.primary TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BondOnAccent}" />
+    </Style>
+
+    <!-- 次按钮 -->
+    <Style Selector="Button.soft">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="Button.soft:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+    </Style>
+
+    <!-- 描边按钮 -->
+    <Style Selector="Button.outline">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="Button.outline:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+    </Style>
+
+    <!-- 纯图标按钮
+         task-153：高分屏命中区修正。用户反馈「传输页取消按钮非常小、高分屏适配不好」——
+         图标视觉保持 14–16，但**命中区**必须是 32×32 DIP（Windows 高分屏/触控的推荐最小值）。
+         共享样式负责下限，行内不要再写 Width/Height 把它压小。 -->
+    <Style Selector="Button.ghosticon">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+    </Style>
+    <Style Selector="Button.ghosticon:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+    </Style>
+
+    <!-- 传输中心行内操作按钮：32×32 命中区（task-153） -->
+    <Style Selector="Button.ghosticon.rowaction">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="MinWidth" Value="32" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!-- 文字按钮的最小命中高度：32 DIP（task-153 的高分屏口径；不改变配色/字号） -->
+    <Style Selector="Button.primary, Button.soft, Button.outline">
+        <Setter Property="MinHeight" Value="32" />
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════
+         顶栏工具组：统一高度基线（34），图标按钮 / 文字按钮 / 下拉框
+         同高同圆角，避免「一排按钮高低不齐」。用法：
+         <StackPanel Classes="toolbar" Orientation="Horizontal">
+         ══════════════════════════════════════════════════════════ -->
+
+    <Style Selector="StackPanel.toolbar > Button">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="StackPanel.toolbar > Button.primary,
+                     StackPanel.toolbar > Button.outline,
+                     StackPanel.toolbar > Button.soft">
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="CornerRadius" Value="9" />
+    </Style>
+
+    <Style Selector="StackPanel.toolbar > Button.ghosticon">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="MinWidth" Value="34" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="9" />
+    </Style>
+
+    <Style Selector="StackPanel.toolbar > ComboBox">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="StackPanel.toolbar > TextBox">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="MinHeight" Value="34" />
+    </Style>
+
+    <!-- 页签（传输页筛选）：选中态用品牌浅底 + 强调色文字 -->
+    <Style Selector="Button.tab">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="Padding" Value="11,5" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.tab:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+    </Style>
+    <Style Selector="Button.tab.active">
+        <Setter Property="Background" Value="{DynamicResource BondAccentSoft}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+    <Style Selector="Button.tab.active TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.tab:pointerover TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+    </Style>
+
+    <!-- 侧边栏：整行可点 + 整行 hover/选中底色（颜色画在模板 PART_Border 上） -->
+    <Style Selector="suki|SukiSideMenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="Transparent" />
+        <!-- task-142：悬停时图标闪烁的修复之一。
+             SukiUI 的 SukiSideMenuItem 模板对 Foreground/Opacity 声明了隐式过渡（动画帧里颜色在两个值之间
+             来回插值并重绘图标），文字因为不动画所以看着正常、图标却像在闪。这里在行控件上直接清空
+             Transitions，让 hover 只发生一次静态改色、不再有逐帧重绘。 -->
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem /template/ Border#PART_Border">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Margin" Value="4,1" />
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem:pointerover /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem:selected /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource BondAccentSoft}" />
+    </Style>
+    <!-- 字重全程恒定：只在「选中」时改字重会让文字宽度变化 → 整行重新排版，
+         鼠标悬浮经过时看着就像文字在抖。选中只靠颜色区分。 -->
+    <Style Selector="suki|SukiSideMenuItem TextBlock">
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem:selected TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+
+    <!-- ══ 列表行 ══
+         行高 40，选中/悬停颜色只由这一层画（ItemsControl，无 ListBoxItem 双层与勾选指示）。 -->
+    <Style Selector="Border.filerow">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Border.filerow:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+    </Style>
+    <Style Selector="Border.filerow.selected">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- task-120：新建文件夹后 1.5 秒高亮（状态由 VM 自动消退） -->
+    <Style Selector="Border.filerow.newly">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Border.tilethumb.newly">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+
+    <!-- 回收站保留期（task-113）：已过期 → 红色「即将清理」 -->
+    <Style Selector="TextBlock.trashremain.urgent">
+        <Setter Property="Foreground" Value="#C0392B" />
+    </Style>
+
+    <!-- ══ 平铺视图缩略图框（大厂网格）══
+         选中/悬停反馈只画在 84×84 缩略图上：名称与副行不着色、不描边（避免"把名字也框住"）。
+         容器单元格本身透明，网格背景就是页面底色。
+         描边由叠在图片**之上**的 ring 层绘制（Border 的边框画在内容下层，真缩略图会盖住它）。 -->
+    <Style Selector="Border.tilethumb">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.tilethumb.selected">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+    </Style>
+
+    <!-- 叠在缩略图上的描边环：hover 40% 强调色，选中 100% 强调色（后定义者胜出） -->
+    <Style Selector="Border.tilethumbring">
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Border.tilethumb:pointerover Border.tilethumbring">
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="#99E57153" />
+    </Style>
+    <Style Selector="Border.tilethumbring.selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+
+    <!-- 名称：选中时仅加粗作弱提示，不加底色、不加勾 -->
+    <Style Selector="TextBlock.tilename">
+        <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="TextBlock.tilename.selected">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- hover 动作：默认隐藏且不占点击，单元格 hover 时浮出右下角 -->
+    <Style Selector="StackPanel.tileactions">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.tilethumb:pointerover StackPanel.tileactions">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+
+    <!-- 浮在缩略图上的动作按钮：给一层不透明底片，否则压在浅色图片上看不清 -->
+    <Style Selector="StackPanel.tileactions > Button">
+        <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="11" />
+    </Style>
+    <Style Selector="StackPanel.tileactions > Button:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+    </Style>
+
+<!-- ══ 侧栏菜单项 ══
+         SukiUI 选中态会把前景/图标交给自己的强调色画笔（浅色主题下等于浅底 + 近白图标），
+         在我们的暖色调 + 浅底色上图标直接看不见。这里把选中态固定成"深强调色图标 + 低透明强调底"。 -->
+    <Style Selector="suki|SukiSideMenuItem mi|MaterialIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+        <!-- task-142：图标闪烁修复之二：inline 图标不参与任何过渡。 -->
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <!-- task-142：hover 时图标颜色保持与常态一致（静态），不随 SukiUI 模板的悬停画笔跳变。
+         该规则放在 :selected 规则之前，选中 + 悬停时仍由选中色覆盖。 -->
+    <Style Selector="suki|SukiSideMenuItem:pointerover mi|MaterialIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+    </Style>
+    <Style Selector="suki|SukiSideMenuItem:selected mi|MaterialIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+
+<!-- ══ 分隔与底座 ══ -->
+    <Style Selector="Border.rule">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource BondBorder}" />
+    </Style>
+
+    <Style Selector="Border.avatar">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Border.tile">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- 进度条强调色跟随主题，避免深色下回落到近黑 -->
+    <Style Selector="ProgressBar">
+        <Setter Property="Foreground" Value="{DynamicResource BondAccent}" />
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHigh}" />
+    </Style>
+
+    <Style Selector="ProgressBar /template/ Border#PART_Indicator">
+        <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+    </Style>
+
+    <!-- 回收站勾选框：自绘 ToggleButton（主题 CheckBox 在等宽行内勾号不渲染时用它替代） -->
+    <Style Selector="ToggleButton.trashcheck">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.trashcheck:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.trashcheck:checked">
+        <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+
+    <!--
+        分享对话框「需要提取码」勾选框（2026-10-29 用户反馈：勾选后输入框出现，
+        但勾选框看起来仍是未勾选）。全应用只有这一处用主题 CheckBox，SukiUI 默认模板
+        在这个浅底对话框里勾号不渲染（与 .trashcheck 同一已知问题）。
+        这里改成自绘 ToggleButton：外框 + 勾号 + 文案都由我们自己的样式控制，
+        :checked 时强调色填充 + 勾号可见，保证状态肉眼可辨。
+    -->
+    <Style Selector="ToggleButton.bondcheck">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ToggleButton.bondcheck Border.checkbox">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Background" Value="{DynamicResource BondSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorderStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.bondcheck:pointerover Border.checkbox">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccentBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.bondcheck:checked Border.checkbox">
+        <Setter Property="Background" Value="{DynamicResource BondAccent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+    <Style Selector="ToggleButton.bondcheck mi|MaterialIcon.checkglyph">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="ToggleButton.bondcheck:checked mi|MaterialIcon.checkglyph">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+
+    <!--
+        task-131：亮色下默认 TextBox 边框（BondBorder #E4E0D8）画在白卡上几乎不可见，
+        拍图确认「新建文件夹」输入框像一行普通文字。这里给一类显式输入框：浅填充 + 更深描边，
+        聚焦时描边换强调色。只用在「需要让用户看出这是个输入框」的场景（对话框/行内重命名/搜索框）。
+    -->
+    <Style Selector="TextBox.input">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorderStrong}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="TextBox.input:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BondBorderStrong}" />
+    </Style>
+    <Style Selector="TextBox.input:focus">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+    <Style Selector="TextBox.input:focus-within">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+
+    <!-- 设置页专用密码行：已吊销 → 整行置灰、弱化（吊销按钮同时禁用） -->
+    <Style Selector="Border.davrow">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.davrow.revoked">
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
+    <!-- ══ 设置页锚点导航（task-142 rev2 / task-150 重做选中态）══
+         原实现是左侧 3px 实心橙色竖条，用户反馈「太丑」。现改为克制方案（task-150 方案 A）：
+         常态=透明；hover=中性浅底 BondSurfaceAlt + 文字加深；active=整行 BondAccentFill（约 8% 强调色）
+         + 强调色文字，不画任何左侧条；active 悬停只加深到 BondAccentFillStrong，保持同一观感。
+         Tab 焦点环：1px 强调色描边（Avalonia 的 :focus-visible），与 hover/active 的底色区分开。
+         不声明任何 Transition，静态换色，避免切换/悬停时逐帧插值闪烁。 -->
+    <Style Selector="Button.settingsnav">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Padding" Value="10,7" />
+        <!-- task-154：导航行高 44 DIP（任务要求），命中区随整行拉伸 -->
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Button.settingsnav:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+    </Style>
+    <Style Selector="Button.settingsnav:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+    <Style Selector="Button.settingsnav.active">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.settingsnav.active:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFillStrong}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+    <Style Selector="Button.settingsnav.active:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource BondAccent}" />
+    </Style>
+
+    <!-- ══ task-154：窄屏顶部横向 chip（settingsnav 的紧凑变体）══
+         chip 态由 code-behind 在内容区宽 <1020 时给按钮加 .chip 类；仍保持 ≥32 DIP 命中区。 -->
+    <Style Selector="Button.settingsnav.chip">
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="10,5" />
+    </Style>
+
+    <!-- ══ task-164：分享管理面板的状态筛选 chip ══
+         与软按钮同底；选中态用强调色浅底 + 强调色文字（与设置页导航方案 A 一致），无 Transition。 -->
+    <Style Selector="Button.sharechip">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource BondSecondary}" />
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Button.sharechip:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondSurfaceHover}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+    </Style>
+    <Style Selector="Button.sharechip.active">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFill}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.sharechip.active:pointerover">
+        <Setter Property="Background" Value="{DynamicResource BondAccentFillStrong}" />
+        <Setter Property="Foreground" Value="{DynamicResource BondAccentDeep}" />
+    </Style>
+
+    <!-- ══ task-154：设置页卡片/行样式（settings* 前缀，独占；不覆盖 task-153 的 ghosticon/rowaction）══
+         卡片内行高 44 DIP，行间 1px BondBorder 40% 分隔线；标题 15 Medium、副标题 12 BondTextMuted。
+         代码型字段（设备码 / WebDAV 地址 / 版本号 / sha256）用 MiSans 主字体 + Consolas 回退，中文仍走 MiSans。 -->
+    <Style Selector="Border.settingsrule">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource BondBorder}" />
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <Style Selector="Border.settingsrow">
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="0,10" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBlock.settingsrowtitle">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource BondText}" />
+    </Style>
+    <Style Selector="TextBlock.settingsrowsub">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource BondTextMuted}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.settingsmono">
+        <Setter Property="FontFamily" Value="avares://Bond/Assets/fonts#MiSans, Consolas" />
+    </Style>
+    <Style Selector="TextBox.settingsmono">
+        <Setter Property="FontFamily" Value="avares://Bond/Assets/fonts#MiSans, Consolas" />
+    </Style>
+
+</Styles>

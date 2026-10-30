@@ -2,10 +2,15 @@ package com.bond.transfer.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bond.common.dto.*;
+import com.bond.common.email.EmailGateway;
+import com.bond.common.email.EmailPurpose;
 import com.bond.common.entity.*;
 import com.bond.common.exception.BusinessException;
+import com.bond.transfer.entitlement.PlanCatalog;
 import com.bond.transfer.mapper.*;
+import com.bond.transfer.storage.ObjectStorage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -26,7 +32,10 @@ public class AdminService {
     private final WorkspaceMemberMapper workspaceMemberMapper;
     private final WorkspaceFileMapper workspaceFileMapper;
     private final ConfigService configService;
-    private final MinioService minioService;
+    private final ObjectStorage objectStorage;
+    private final EmailGateway emailGateway;
+    /** 档位展示名（本地缓存，随管理端改档刷新）——补齐列表 planName 不需要逐行查库。 */
+    private final PlanCatalog planCatalog;
 
     public DashboardDTO getDashboard() {
         DashboardDTO dto = new DashboardDTO();
@@ -38,7 +47,9 @@ public class AdminService {
                 new LambdaQueryWrapper<TransferTask>().eq(TransferTask::getStatus, 2)));
         dto.setTotalWorkspaces(workspaceMapper.selectCount(null));
 
-        List<WorkspaceFile> files = workspaceFileMapper.selectList(null);
+        // 统计只算「未进回收站」的文件（软删行仍占物理对象，但不应计入用户可见用量）
+        List<WorkspaceFile> files = workspaceFileMapper.selectList(
+                new LambdaQueryWrapper<WorkspaceFile>().isNull(WorkspaceFile::getDeletedAt));
         dto.setTotalStorageUsed(files.stream().mapToLong(WorkspaceFile::getFileSize).sum());
 
         dto.setTransferTrend(getTransferTrend(7));
@@ -75,6 +86,9 @@ public class AdminService {
             dto.setAvatarUrl(u.getAvatarUrl());
             dto.setStatus(u.getStatus());
             dto.setIsAdmin(u.getIsAdmin());
+            dto.setEmail(u.getEmail());
+            dto.setEmailVerified(u.getEmail() != null);
+            fillPlan(dto, u);
             dto.setCreatedAt(u.getCreatedAt() != null
                     ? u.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : null);
             dto.setDeviceCount(deviceMapper.selectCount(
@@ -90,8 +104,30 @@ public class AdminService {
     public void setUserStatus(Long userId, int status) {
         User user = userMapper.selectById(userId);
         if (user == null) throw new BusinessException(404, "用户不存在");
+        int previous = user.getStatus() == null ? 1 : user.getStatus();
         user.setStatus(status);
         userMapper.updateById(user);
+        if (previous != status) {
+            notifyAccountStatus(user, status);
+        }
+    }
+
+    /** task-76：封禁/解除封禁通知（best-effort，发信失败只记 warn，不影响管理操作）。 */
+    private void notifyAccountStatus(User user, int status) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        try {
+            Map<String, String> variables = new java.util.LinkedHashMap<>();
+            variables.put("username", user.getNickname() == null ? user.getUsername() : user.getNickname());
+            variables.put("email", user.getEmail());
+            variables.put("action", status == 0 ? "账号封禁" : "账号解封");
+            variables.put("reason", status == 0 ? "账号已被管理员封禁" : "账号已由管理员恢复");
+            emailGateway.sendByPurpose(user.getEmail(), EmailPurpose.ADMIN_OPERATION_NOTICE, variables);
+        } catch (RuntimeException e) {
+            log.warn("admin operation notice failed for userId={}, provider-issue={}",
+                    user.getId(), e.getClass().getSimpleName());
+        }
     }
 
     public void setAdmin(Long userId, boolean isAdmin) {
@@ -106,7 +142,7 @@ public class AdminService {
                 new LambdaQueryWrapper<TransferTask>()
                         .and(w -> w.eq(TransferTask::getSenderId, userId).or().eq(TransferTask::getReceiverId, userId)));
         for (TransferTask task : tasks) {
-            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            try { objectStorage.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
             transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, task.getId()));
         }
         transferTaskMapper.delete(new LambdaQueryWrapper<TransferTask>()
@@ -139,7 +175,7 @@ public class AdminService {
     public void deleteTransfer(Long taskId) {
         TransferTask task = transferTaskMapper.selectById(taskId);
         if (task != null) {
-            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            try { objectStorage.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
             transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, taskId));
             transferTaskMapper.deleteById(taskId);
         }
@@ -148,14 +184,16 @@ public class AdminService {
     public int cleanupExpired() {
         List<TransferTask> expired = transferTaskMapper.selectList(
                 new LambdaQueryWrapper<TransferTask>()
+                        .isNotNull(TransferTask::getExpiresAt)
                         .lt(TransferTask::getExpiresAt, LocalDateTime.now())
                         .ne(TransferTask::getStatus, 2));
         for (TransferTask task : expired) {
-            try { minioService.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
+            try { objectStorage.deleteObject(task.getMinioPath()); } catch (Exception ignored) {}
             transferChunkMapper.delete(new LambdaQueryWrapper<TransferChunk>().eq(TransferChunk::getTaskId, task.getId()));
         }
         return transferTaskMapper.delete(
                 new LambdaQueryWrapper<TransferTask>()
+                        .isNotNull(TransferTask::getExpiresAt)
                         .lt(TransferTask::getExpiresAt, LocalDateTime.now())
                         .ne(TransferTask::getStatus, 2));
     }
@@ -165,7 +203,15 @@ public class AdminService {
         wrapper.orderByDesc(Workspace::getCreatedAt);
         wrapper.last("LIMIT " + size + " OFFSET " + (page - 1) * size);
 
-        return workspaceMapper.selectList(wrapper).stream().map(w -> {
+        List<Workspace> workspaces = workspaceMapper.selectList(wrapper);
+        List<Long> ids = workspaces.stream().map(Workspace::getId).collect(Collectors.toList());
+        // task-102：当前页两条 GROUP BY 聚合一次补齐 memberCount/fileCount（不逐行 COUNT）
+        Map<Long, Long> memberCounts = ids.isEmpty() ? Map.of()
+                : countMap(workspaceMemberMapper.countByWorkspaceIds(ids), "member_count");
+        Map<Long, Long> fileCounts = ids.isEmpty() ? Map.of()
+                : countMap(workspaceFileMapper.countActiveFilesByWorkspaceIds(ids), "file_count");
+
+        return workspaces.stream().map(w -> {
             WorkspaceDTO dto = new WorkspaceDTO();
             dto.setId(w.getId());
             dto.setName(w.getName());
@@ -173,17 +219,44 @@ public class AdminService {
             dto.setOwnerId(w.getOwnerId());
             dto.setMaxSize(w.getMaxSize());
             dto.setUsedSize(w.getUsedSize());
+            dto.setMemberCount(memberCounts.getOrDefault(w.getId(), 0L));
+            dto.setFileCount(fileCounts.getOrDefault(w.getId(), 0L));
             dto.setCreatedAt(w.getCreatedAt() != null
                     ? w.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : null);
             return dto;
         }).collect(Collectors.toList());
     }
 
+    /** 收「{workspace_id, <column>}」行 → id→count 映射；异常数据按 0 忽略。 */
+    private static Map<Long, Long> countMap(List<Map<String, Object>> rows, String column) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Long> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object idValue = row.get("workspace_id");
+            if (idValue instanceof Number id) {
+                Object countValue = row.get(column);
+                result.put(id.longValue(), countValue instanceof Number count ? count.longValue() : 0L);
+            }
+        }
+        return result;
+    }
+
+    /** 列表/详情的档位字段：plan_code 空 → free；planName 走 PlanCatalog（无逐行查库）。 */
+    private void fillPlan(AdminUserDTO dto, User user) {
+        String code = user.getPlanCode() == null || user.getPlanCode().isBlank() ? "free" : user.getPlanCode();
+        dto.setPlanCode(code);
+        dto.setPlanName(planCatalog.name(code));
+        dto.setPlanExpiresAt(user.getPlanExpiresAt() == null ? null
+                : user.getPlanExpiresAt().toInstant().toEpochMilli());
+    }
+
     public void deleteWorkspace(Long workspaceId) {
         var files = workspaceFileMapper.selectList(
                 new LambdaQueryWrapper<WorkspaceFile>().eq(WorkspaceFile::getWorkspaceId, workspaceId));
         for (var file : files) {
-            try { minioService.deleteObject(file.getMinioPath()); } catch (Exception ignored) {}
+            try { objectStorage.deleteObject(file.getMinioPath()); } catch (Exception ignored) {}
         }
         workspaceFileMapper.delete(
                 new LambdaQueryWrapper<WorkspaceFile>().eq(WorkspaceFile::getWorkspaceId, workspaceId));
@@ -202,6 +275,9 @@ public class AdminService {
         dto.setAvatarUrl(u.getAvatarUrl());
         dto.setStatus(u.getStatus());
         dto.setIsAdmin(u.getIsAdmin());
+        dto.setEmail(u.getEmail());
+        dto.setEmailVerified(u.getEmail() != null);
+        fillPlan(dto, u);
         dto.setCreatedAt(u.getCreatedAt() != null
                 ? u.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : null);
         dto.setDeviceCount(deviceMapper.selectCount(
@@ -243,16 +319,20 @@ public class AdminService {
         if (ws == null) throw new BusinessException(404, "工作区不存在");
 
         Map<String, Object> detail = new HashMap<>();
-        detail.put("id", ws.getId());
+        // Map 无法挂 Jackson 注解，ID 字段显式转字符串，避免 JS 端超过 2^53 后精度丢失
+        detail.put("id", String.valueOf(ws.getId()));
         detail.put("name", ws.getName());
         detail.put("description", ws.getDescription());
-        detail.put("ownerId", ws.getOwnerId());
+        detail.put("ownerId", ws.getOwnerId() == null ? null : String.valueOf(ws.getOwnerId()));
         detail.put("maxSize", ws.getMaxSize());
         detail.put("usedSize", ws.getUsedSize());
         detail.put("memberCount", workspaceMemberMapper.selectCount(
                 new LambdaQueryWrapper<WorkspaceMember>().eq(WorkspaceMember::getWorkspaceId, workspaceId)));
         detail.put("fileCount", workspaceFileMapper.selectCount(
-                new LambdaQueryWrapper<WorkspaceFile>().eq(WorkspaceFile::getWorkspaceId, workspaceId)));
+                new LambdaQueryWrapper<WorkspaceFile>()
+                        .eq(WorkspaceFile::getWorkspaceId, workspaceId)
+                        .eq(WorkspaceFile::getIsDirectory, false)
+                        .isNull(WorkspaceFile::getDeletedAt)));
         return detail;
     }
 }

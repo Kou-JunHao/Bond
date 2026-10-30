@@ -1,0 +1,171 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="Bond.Views.Controls.ShortcutsOverlay"
+             IsVisible="False">
+
+    <!-- task-133：键盘快捷键帮助浮层。
+         由 MainWindow 在 ? / Ctrl+/ 时打开、Esc 或点遮罩关闭；关闭后焦点交回文件列表。
+         这里只列「真的实现了」的键位，避免帮助面板撒谎。 -->
+    <Border x:Name="Scrim" Background="{DynamicResource BondScrim}"
+            PointerPressed="OnScrimPressed">
+        <Border Width="820" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource BondSurface}"
+                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                CornerRadius="14" Padding="22,18" BoxShadow="0 18 48 0 #2E1B1A17">
+            <StackPanel Spacing="14">
+
+                <!-- 头部 -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="键盘快捷键" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="文件页与全局操作 · 按 ? 可随时打开，Esc 关闭"
+                                   Classes="meta" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="ghosticon" Padding="6" MinWidth="32" MinHeight="32"
+                            Click="OnCloseClick" ToolTip.Tip="关闭（Esc）">
+                        <mi:MaterialIcon Kind="Close" IconSize="14" />
+                    </Button>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,24,*">
+
+                    <!-- 文件操作 -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="文件操作" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondAccent}" />
+                        <Grid ColumnDefinitions="132,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              RowSpacing="7">
+                            <Border Grid.Row="0" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="F2" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="重命名选中项（一次一个）"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="1" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Delete" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="删除选中项（二次确认）"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="2" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Ctrl + D" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="下载选中文件"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="3" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Ctrl + Shift + N" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="新建文件夹"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="4" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Ctrl + A" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="全选当前目录"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="5" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="F5" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="刷新当前目录"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="6" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Enter" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="6" Grid.Column="1" Text="打开选中项（与双击一致）"
+                                       Classes="meta" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- 列表导航 -->
+                    <StackPanel Grid.Column="2" Spacing="8">
+                        <TextBlock Text="列表导航" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource BondAccent}" />
+                        <Grid ColumnDefinitions="132,*" RowDefinitions="Auto,Auto,Auto"
+                              RowSpacing="7">
+                            <Border Grid.Row="0" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Esc" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="逐级退出：先退搜索，再取消选择"
+                                       Classes="meta" VerticalAlignment="Center"
+                                       TextWrapping="Wrap" />
+
+                            <Border Grid.Row="1" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="Ctrl + F" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="聚焦搜索框"
+                                       Classes="meta" VerticalAlignment="Center" />
+
+                            <Border Grid.Row="2" Grid.Column="0" HorizontalAlignment="Left"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                    CornerRadius="5" Padding="7,1">
+                                <TextBlock Text="双击" FontFamily="Consolas" FontSize="11" />
+                            </Border>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="打开文件夹 / 预览文件"
+                                       Classes="meta" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource BondBorder}" />
+
+                <!-- 全局 -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="全局" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource BondAccent}" />
+                    <Grid ColumnDefinitions="132,*" RowDefinitions="Auto,Auto" RowSpacing="7">
+                        <Border Grid.Row="0" Grid.Column="0" HorizontalAlignment="Left"
+                                Background="{DynamicResource BondSurfaceAlt}"
+                                BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                CornerRadius="5" Padding="7,1">
+                            <TextBlock Text="Ctrl + 1…6" FontFamily="Consolas" FontSize="11" />
+                        </Border>
+                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                   Text="切换侧栏：文件 / 工作区 / 传输 / 设备 / 会话 / 设置"
+                                   Classes="meta" VerticalAlignment="Center" />
+
+                        <Border Grid.Row="1" Grid.Column="0" HorizontalAlignment="Left"
+                                Background="{DynamicResource BondSurfaceAlt}"
+                                BorderBrush="{DynamicResource BondBorderStrong}" BorderThickness="1"
+                                CornerRadius="5" Padding="7,1">
+                            <TextBlock Text="? / Ctrl + /" FontFamily="Consolas" FontSize="11" />
+                        </Border>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="打开 / 关闭本帮助"
+                                   Classes="meta" VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</UserControl>

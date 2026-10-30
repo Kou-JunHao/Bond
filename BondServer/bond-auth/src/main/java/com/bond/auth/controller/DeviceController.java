@@ -20,7 +20,8 @@ public class DeviceController {
     public Result<DeviceDTO> registerDevice(@RequestHeader("Authorization") String auth,
                                             @RequestBody RegisterDeviceRequest req) {
         String token = auth.startsWith("Bearer ") ? auth.substring(7) : auth;
-        return Result.ok(deviceService.registerDevice(token, req.getDeviceName(), req.getDeviceType(), req.getPublicKey()));
+        return Result.ok(deviceService.registerDevice(token,
+                req.getDeviceId(), req.getDeviceName(), req.getDeviceType(), req.getPublicKey()));
     }
 
     @GetMapping
@@ -60,6 +61,11 @@ public class DeviceController {
 
     @Data
     static class RegisterDeviceRequest {
+        /**
+         * 稳定设备指纹（可选）：同一台机器每次注册都应传相同值；缺省时服务端回退为
+         * deviceName + "|" + deviceType 作为设备标识。
+         */
+        private String deviceId;
         private String deviceName;
         private String deviceType;
         private String publicKey;

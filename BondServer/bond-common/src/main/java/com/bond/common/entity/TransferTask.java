@@ -23,7 +23,10 @@ public class TransferTask {
     private String encryptedKey;
     private Integer status;
     private Integer uploadedChunks;
+    /** V13：接收方已下载分片数（原子自增，仅 receiver 下载时计数）。 */
+    private Integer downloadedChunks;
     private Long workspaceId;
+    private String transferType;
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

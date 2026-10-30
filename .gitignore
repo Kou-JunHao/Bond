@@ -1,104 +1,46 @@
-# ============================================
-# Bond Project .gitignore
-# ============================================
-
-# ── Build outputs ──
-bin/
-obj/
-publish/
-target/
-BondClient/publish/
+﻿# build outputs
+**/bin/
+**/obj/
 **/target/
-*.exe
-*.dll
-*.pdb
-*.class
-*.jar
-*.war
+dist/
+publish/
 
-# ── IDE / Editor ──
+# IDE
 .vs/
-.vscode/
 .idea/
-*.suo
+.vscode/
 *.user
-*.userosscache
-*.userprefs
-*.sln.docstates
-*.swp
-*.swo
-*~
+*.suo
 
-# ── AI / Local Tools ──
-.kilo/
-.mimocode/
-.claude/
-.github/
+# dependencies
+node_modules/
 
-# ── Security: keys & credentials ──
-*.key
-*.pem
-*.p12
-*.pfx
-*.cert
-*.crt
-*.jks
-*.keystore
-*.secret
-*.cred
+# runtime / local data
+*.log
+*.dmp
+*.tmp
 .env
 .env.*
-sshkey.key
+!.env.example
+*.key
+*.pem
+*sshkey*
+auth.json
+token.txt
+uploads.json
+*.pfx
+*.p12
 
-# ── Production secrets ──
-deploy/
-SERVER_DEPLOY.md
-PROJECT_REVIEW.md
-BondServer/API_DOCS.md
-
-# ── OS files ──
+# OS
 Thumbs.db
-Desktop.ini
+desktop.ini
 .DS_Store
-*.lnk
 
-# ── .NET / NuGet ──
-packages/
-*.nupkg
-
-# ── Java / Maven ──
-BondServer/.mvn/wrapper/*.jar
-BondServer/.mvn/maven/
-
-# ── Node.js ──
-node_modules/
-admin-web/dist/
-admin-web/.vite/
-admin-web/.pnpm-store/
-*.local
-*.tgz
-
-# ── Client runtime data ──
-BondClient/auth.json
-BondClient/config.json
-BondClient/position.txt
-BondClient/resume/
-BondClient/history.json
-BondClient/add_firewall_rules.bat
-
-# ── Logs & databases ──
-*.log
-*.sql
-*.sqlite
-*.sqlite3
-
-# ── Package manager locks ──
-package-lock.json
-yarn.lock
-bun.lock
-
-# ── Misc ──
-*.cache
-*.tmp
-*.bak
-*.orig
+# local-only artifacts
+*.zip
+*.tar
+*.tar.gz
+*.bin
+session-*.md
+reports/
+BondClient/docs/screenshots/
