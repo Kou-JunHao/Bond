@@ -1,0 +1,4 @@
+<Solution>
+    <Project Path="Bond.csproj" />
+    <Project Path="tools/MorphCheck/MorphCheck.csproj" />
+</Solution>

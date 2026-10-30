@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https: http: blob:; font-src 'self' data:;" />
+  <title>Bond Document</title>
+  <link rel="stylesheet" href="quill.snow.css" />
+  <link rel="stylesheet" href="editor.css" />
+</head>
+<body>
+  <div id="editor"></div>
+  <div id="error" hidden>
+    <div class="err-title">编辑器资源加载失败</div>
+    <div class="err-body" id="error-text"></div>
+  </div>
+  <script src="quill.js"></script>
+  <script src="marked.min.js"></script>
+  <script src="turndown.js"></script>
+  <script src="turndown-plugin-gfm.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

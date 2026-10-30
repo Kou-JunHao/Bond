@@ -1,0 +1,355 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="Bond.Views.Pages.SharesPage"
+             x:DataType="vm:FilesPageViewModel">
+
+    <!--
+        2026-10-29：用户反馈「客户端没有直接的管理分享链接的页面」。
+        之前「我的分享」只是文件页工具栏按钮唤出的右侧滑出面板，入口不明显。
+        这里做成侧栏独立页（与文件/工作区/会话等平级），面板内容搬过来并放宽列宽；
+        文件页的面板保留作为快捷入口，二者共用同一个 FilesPageViewModel。
+    -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24,18,24,18" RowSpacing="12">
+
+        <!-- ══ 标题 ══ -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="3">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h1" Text="我的分享" VerticalAlignment="Center" />
+                    <Border Background="{DynamicResource BondAccentSoft}" CornerRadius="9"
+                            Padding="9,3" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SharesCountText}" FontSize="11"
+                                   Foreground="{DynamicResource BondAccent}" />
+                    </Border>
+                </StackPanel>
+                <TextBlock Classes="meta" TextWrapping="Wrap"
+                           Text="这里集中管理你创建的所有匿名下载链接：可改提取码 / 有效期 / 下载次数上限，也可随时撤销；文件夹分享的下载为流式 ZIP。撤销后链接立即失效且不可恢复。" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Classes="soft" Command="{Binding RefreshSharesCommand}"
+                        AutomationProperties.Name="刷新分享列表" Padding="12,0" MinHeight="34"
+                        ToolTip.Tip="重新从服务器加载分享记录">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <mi:MaterialIcon Kind="Refresh" IconSize="14" />
+                        <TextBlock Text="刷新" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ══ 筛选 + 搜索 ══ -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+            <ItemsControl ItemsSource="{Binding ShareFilters}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ShareFilterChip">
+                        <Button Classes="soft sharechip" Classes.active="{Binding IsActive}"
+                                Content="{Binding Label}" Padding="12,5" MinHeight="32"
+                                Command="{Binding $parent[ItemsControl].((vm:FilesPageViewModel)DataContext).SetShareFilterCommand}"
+                                CommandParameter="{Binding ValueText}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBox Grid.Column="1" Width="240" Height="34" MinHeight="34"
+                     VerticalContentAlignment="Center"
+                     PlaceholderText="搜索文件名"
+                     Text="{Binding ShareSearch}"
+                     AutomationProperties.Name="搜索分享文件名" />
+        </Grid>
+
+        <!-- ══ 列表 ══ -->
+        <Border Grid.Row="2" Background="{DynamicResource BondSurface}"
+                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                CornerRadius="14" Padding="0,8,0,4">
+            <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="10,0">
+
+                <!-- 列头（与行模板列宽一一对应；窄窗时文件名列用省略号，不让固定列把 * 挤成 0） -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,72,72,104,136,112,112,136"
+                      Margin="10,2,10,6">
+                    <TextBlock Classes="meta" FontSize="10.5" Text="文件名" />
+                    <TextBlock Grid.Column="1" Classes="meta" FontSize="10.5" Text="状态" />
+                    <TextBlock Grid.Column="2" Classes="meta" FontSize="10.5" Text="提取码" />
+                    <TextBlock Grid.Column="3" Classes="meta" FontSize="10.5" Text="下载" />
+                    <TextBlock Grid.Column="4" Classes="meta" FontSize="10.5" Text="有效期" />
+                    <TextBlock Grid.Column="5" Classes="meta" FontSize="10.5" Text="创建时间" />
+                    <TextBlock Grid.Column="6" Classes="meta" FontSize="10.5" Text="最后访问" />
+                    <TextBlock Grid.Column="7" Classes="meta" FontSize="10.5" Text="操作"
+                               HorizontalAlignment="Right" />
+                </Grid>
+
+                <!-- 加载态 -->
+                <StackPanel Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="8"
+                            IsVisible="{Binding IsSharesLoading}">
+                    <TextBlock Classes="meta" Text="加载分享记录…" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <!-- 失败态 -->
+                <StackPanel Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="10"
+                            IsVisible="{Binding ShowSharesError}">
+                    <TextBlock Classes="body" Text="{Binding SharesError}" TextWrapping="Wrap"
+                               MaxWidth="520" TextAlignment="Center" />
+                    <Button Classes="soft" HorizontalAlignment="Center"
+                            Command="{Binding RefreshSharesCommand}" Content="重试" />
+                </StackPanel>
+
+                <!-- 空态 -->
+                <StackPanel Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="8"
+                            IsVisible="{Binding ShowSharesEmpty}">
+                    <mi:MaterialIcon Kind="LinkVariant" IconSize="34"
+                                     Foreground="{DynamicResource BondTertiary}" />
+                    <TextBlock Classes="meta" Text="还没有分享记录" HorizontalAlignment="Center" />
+                    <TextBlock Classes="meta" FontSize="11" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource BondTertiary}"
+                               Text="到「文件」页选中文件或文件夹 → 右键「创建分享链接」，生成的链接会出现在这里（文件夹下载为 ZIP）" />
+                </StackPanel>
+
+                <!-- 筛选/搜索无结果 -->
+                <StackPanel Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="6"
+                            IsVisible="{Binding ShowSharesFilterEmpty}">
+                    <TextBlock Classes="meta" Text="当前筛选没有匹配的分享" HorizontalAlignment="Center" />
+                    <TextBlock Classes="meta" FontSize="11" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource BondTertiary}"
+                               Text="换个状态或清空搜索关键词再试" />
+                </StackPanel>
+
+                <!-- 分享列表：横向滚动禁用（否则 ScrollViewer 以无限宽测量，* 列会塌成 0），
+                     列宽与上面的列头严格一致；窄窗靠文件名列的 CharacterEllipsis 收敛。 -->
+                <ScrollViewer Grid.Row="1" Grid.RowSpan="2" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              IsVisible="{Binding ShowSharesList}">
+                    <ItemsControl ItemsSource="{Binding FilteredShares}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:ShareLink">
+                                <Border Classes="filerow" MinHeight="46" Padding="10,3" Margin="0,1">
+                                    <Grid ColumnDefinitions="*,72,72,104,136,112,112,136"
+                                          VerticalAlignment="Center">
+                                        <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center">
+                                            <mi:MaterialIcon Kind="LinkVariant" IconSize="14"
+                                                             Foreground="{DynamicResource BondTertiary}"
+                                                             VerticalAlignment="Center" />
+                                            <!-- task-183：文件夹分享徽标（ZIP 下载） -->
+                                            <Border Grid.Column="1" Margin="7,0,0,0"
+                                                    Background="{DynamicResource BondAccentFill}"
+                                                    CornerRadius="6" Padding="6,1"
+                                                    VerticalAlignment="Center"
+                                                    IsVisible="{Binding IsDirectory}"
+                                                    ToolTip.Tip="文件夹分享：打开落地页可查看首层子项，下载为 ZIP">
+                                                <StackPanel Orientation="Horizontal" Spacing="3">
+                                                    <mi:MaterialIcon Kind="FolderOutline" IconSize="10"
+                                                                     Foreground="{DynamicResource BondAccentDeep}" />
+                                                    <TextBlock Text="文件夹" FontSize="9.5"
+                                                               Foreground="{DynamicResource BondAccentDeep}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Grid.Column="2" Margin="7,0,4,0"
+                                                       Text="{Binding FileName}" Classes="body" FontSize="12.5"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding FileName}" />
+                                        </Grid>
+                                        <TextBlock Grid.Column="1" Text="正常" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource BondAccent}"
+                                                   IsVisible="{Binding IsActive}" />
+                                        <TextBlock Grid.Column="1" Text="已过期" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource BondTextMuted}"
+                                                   IsVisible="{Binding IsExpired}" />
+                                        <TextBlock Grid.Column="1" Text="已撤销" FontSize="11"
+                                                   VerticalAlignment="Center" Foreground="#C0392B"
+                                                   IsVisible="{Binding IsRevoked}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding CodeText}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip.Tip="设置了提取码的链接只显示掩码；提取码在创建/修改时由你自行保管"
+                                                   Foreground="{DynamicResource BondTextMuted}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding DownloadText}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource BondTextMuted}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding ExpiresBadgeText}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding ExpiresBadgeText}"
+                                                   Foreground="{DynamicResource BondTextMuted}" />
+                                        <TextBlock Grid.Column="5" Text="{Binding CreatedText}" FontSize="11"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding CreatedText}"
+                                                   Foreground="{DynamicResource BondTextMuted}" />
+                                        <TextBlock Grid.Column="6" Text="{Binding LastAccessText}" FontSize="11"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip.Tip="{Binding LastAccessText}"
+                                                   Foreground="{DynamicResource BondTertiary}" />
+                                        <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="2"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <Button Classes="ghosticon" Padding="7,3" MinHeight="28"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.CopyShareUrlCommand}"
+                                                    CommandParameter="{Binding Url}"
+                                                    AutomationProperties.Name="复制分享链接"
+                                                    ToolTip.Tip="复制链接">
+                                                <TextBlock Text="复制" FontSize="10.5" />
+                                            </Button>
+                                            <Button Classes="ghosticon" Padding="7,3" MinHeight="28"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.OpenShareUrlCommand}"
+                                                    CommandParameter="{Binding Url}"
+                                                    AutomationProperties.Name="在浏览器打开分享"
+                                                    IsEnabled="{Binding IsActive}"
+                                                    ToolTip.Tip="在浏览器中打开这条链接">
+                                                <TextBlock Text="打开" FontSize="10.5" />
+                                            </Button>
+                                            <Button Classes="ghosticon" Padding="7,3" MinHeight="28"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.OpenEditShareCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    AutomationProperties.Name="编辑这条分享"
+                                                    IsEnabled="{Binding IsActive}"
+                                                    ToolTip.Tip="编辑提取码 / 有效期 / 下载上限">
+                                                <TextBlock Text="编辑" FontSize="10.5" />
+                                            </Button>
+                                            <Button Classes="ghosticon" Padding="7,3" MinHeight="28"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.RequestRevokeCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    AutomationProperties.Name="撤销分享"
+                                                    IsEnabled="{Binding IsActive}"
+                                                    ToolTip.Tip="撤销这条分享链接">
+                                                <TextBlock Text="撤销" FontSize="10.5"
+                                                           Foreground="#C0392B" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- 底部说明 -->
+                <TextBlock Grid.Row="3" Classes="meta" FontSize="10.5" Margin="10,8,10,2"
+                           Foreground="{DynamicResource BondTertiary}"
+                           Text="匿名下载链接仅在有效期内可访问；下载次数用尽或撤销后立即失效。提取码不会明文回显，请创建时自行保存。" />
+            </Grid>
+        </Border>
+
+        <!-- ══ 编辑分享：与文件页面板同一套 VM 状态 ══ -->
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsEditShareOpen}" ZIndex="75">
+            <Border Background="#4D000000" />
+            <Border Width="520" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="16"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,18,20,16" Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="h2" Text="编辑分享" />
+                            <TextBlock Classes="meta" FontSize="11" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding EditShare.FileName}"
+                                       Text="{Binding EditShare.FileName, StringFormat='名称：{0}'}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Padding="6" MinWidth="28"
+                                MinHeight="28" Command="{Binding CloseEditShareCommand}"
+                                AutomationProperties.Name="关闭编辑" ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="提取码" />
+                        <StackPanel Spacing="2">
+                            <RadioButton GroupName="share-code-mode" Content="保持现状（不修改）"
+                                         AutomationProperties.Name="提取码-保持现状"
+                                         IsChecked="{Binding EditCodeKeep, Mode=TwoWay}" />
+                            <RadioButton GroupName="share-code-mode" Content="取消提取码（链接变为公开）"
+                                         AutomationProperties.Name="提取码-取消"
+                                         IsChecked="{Binding EditCodeRemove, Mode=TwoWay}" />
+                            <RadioButton GroupName="share-code-mode" Content="设置新提取码"
+                                         AutomationProperties.Name="提取码-设置新码"
+                                         IsChecked="{Binding EditCodeReplace, Mode=TwoWay}" />
+                        </StackPanel>
+                        <TextBox Text="{Binding EditShareCode}" IsVisible="{Binding ShowEditCodeInput}"
+                                 AutomationProperties.Name="新提取码"
+                                 MaxLength="8" Width="200" Height="32" MinHeight="32"
+                                 HorizontalAlignment="Left" PlaceholderText="4–8 位字母或数字" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="#C0392B" TextWrapping="Wrap"
+                                   Text="{Binding EditShareCodeError}"
+                                   IsVisible="{Binding EditShareCodeError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="有效期" />
+                        <ComboBox ItemsSource="{Binding ShareExpiryOptions}"
+                                  SelectedItem="{Binding EditShareExpiry}"
+                                  AutomationProperties.Name="编辑有效期"
+                                  Width="160" Height="32" MinHeight="32" HorizontalAlignment="Left">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ShareExpiryOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Classes="meta" FontSize="10.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="「永久」可能需要当前档位支持；保存失败会原样显示后端提示" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" FontWeight="Medium" Text="下载次数上限" />
+                        <TextBox Text="{Binding EditShareMaxDownloads}" Width="160" Height="32"
+                                 AutomationProperties.Name="编辑下载上限"
+                                 MinHeight="32" HorizontalAlignment="Left" PlaceholderText="留空 = 不限制" />
+                        <TextBlock Classes="meta" FontSize="10.5" Foreground="#C0392B" TextWrapping="Wrap"
+                                   Text="{Binding EditShareMaxDownloadsError}"
+                                   IsVisible="{Binding EditShareMaxDownloadsError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+                        <TextBlock Classes="meta" FontSize="10.5"
+                                   Foreground="{DynamicResource BondTertiary}"
+                                   Text="{Binding EditShare.DownloadText, StringFormat='当前已下载：{0}'}" />
+                        <TextBlock Classes="meta" FontSize="10.5" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondAccent}"
+                                   Text="这是文件夹分享：匿名下载为流式 ZIP（落地页可查看首层子项），编辑有效期/次数与文件分享一致。"
+                                   IsVisible="{Binding EditShare.IsDirectory}" />
+                    </StackPanel>
+
+                    <TextBlock Classes="meta" FontSize="11" Foreground="#C0392B" TextWrapping="Wrap"
+                               Text="{Binding EditShareError}"
+                               IsVisible="{Binding EditShareError, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CloseEditShareCommand}" />
+                        <Button Classes="primary" Content="保存修改" MinHeight="32"
+                                AutomationProperties.Name="保存修改分享"
+                                Command="{Binding SaveShareEditCommand}"
+                                IsEnabled="{Binding CanSaveShareEdit}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ══ 撤销二次确认 ══ -->
+        <Grid Grid.RowSpan="3" IsVisible="{Binding PendingRevoke, Converter={x:Static conv:ObjectConverters.IsNotNull}}" ZIndex="90">
+            <Border Background="#4D000000" />
+            <Border Width="380" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <StackPanel Margin="20,16" Spacing="10">
+                    <TextBlock Classes="h2" Text="撤销分享链接？" />
+                    <TextBlock Classes="meta" TextWrapping="Wrap"
+                               Text="{Binding PendingRevoke.FileName, StringFormat='「{0}」的链接将立即失效，已打开页面的人也无法继续下载。'}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="soft" Content="取消" Command="{Binding CancelRevokeCommand}"
+                                AutomationProperties.Name="取消撤销" />
+                        <Button Classes="primary" Content="撤销" Command="{Binding ConfirmRevokeCommand}"
+                                AutomationProperties.Name="确认撤销" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

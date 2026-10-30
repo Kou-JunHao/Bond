@@ -1,0 +1,63 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bond
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  application:
+    name: bond-auth
+  servlet:
+    multipart:
+      # 头像（task-152）：单文件 ≤2MB，请求体略大以免边界开销误杀
+      max-file-size: 2MB
+      max-request-size: 3MB
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-change-in-production}
+
+# 发信网关（task-63 v3）：发信参数以后台「系统设置 → 邮件」里保存的 DB 配置为唯一主来源，
+# 这里仅作为未配置 DB 时的环境变量兜底；默认 provider=off（未配置），
+# 因此注册/找回密码类接口在后台配好 SMTP 前会返回 503「发信服务未配置」。
+# ⚠️ 代码与仓库里不允许出现任何真实服务商域名/口令，SMTP 口令与 Resend Key 在 DB 中为 enc:v1: 密文。
+bond:
+  email:
+    provider: ${BOND_EMAIL_PROVIDER:off}
+    from: ${BOND_EMAIL_FROM:}
+    resend:
+      endpoint: ${BOND_EMAIL_RESEND_ENDPOINT:https://api.resend.com}
+  auth:
+    # task-68：只信任来自这些代理（本机 / 1panel-network）的 X-Real-IP / X-Forwarded-For；
+    # 非信任来源一律用直连地址，客户端伪造代理头无效。可用 BOND_AUTH_TRUSTED_PROXIES 覆盖（逗号分隔 IP / IPv4 CIDR）。
+    trusted-proxies: ${BOND_AUTH_TRUSTED_PROXIES:127.0.0.1,::1,172.18.0.0/16}
+  # 用户头像存储（task-152）：独立 bucket bond-avatar（私有），凭据与网盘共用 RustFS。
+  # 头像对象键 users/{userId}.jpg；bucket 缺失时启动自动创建；读写均走服务端代理，不暴露对象存储地址。
+  avatar:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    region: ${STORAGE_REGION:us-east-1}
+    bucket: ${STORAGE_AVATAR_BUCKET:bond-avatar}
+    path-style: ${STORAGE_PATH_STYLE:true}
+
+# 容器 healthcheck 用：只暴露 health/info；/actuator/health 不在 /api/ 下，InternalAuthFilter 不拦。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+

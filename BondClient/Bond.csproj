@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+        <RootNamespace>Bond</RootNamespace>
+        <AssemblyName>Bond</AssemblyName>
+        <Version>2.1.0</Version>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <!-- task-148锛歟xe 璧勬簮鍥炬爣浣跨敤鐢?logo.svg 娓叉煋鐨勭櫧搴曞灏哄 Icon.ico锛堝畨瑁呰剼鏈殑 SetupIconFile / 蹇嵎鏂瑰紡涔熸寚鍚戝悓涓€鏂囦欢锛?-->
+        <ApplicationIcon>Assets\Icon.ico</ApplicationIcon>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- WebView2 鍖呬細缁欓潪 WPF 宸ョ▼鎸備竴浠?WPF 绋嬪簭闆嗗紩鐢紝MSB3277 鍙槸鎻愮ず锛岄檷绾т负娑堟伅浠ヤ繚鎸?0 warning锛堝叾瀹冭鍛婁笉鍘嬪埗锛?-->
+        <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+        <!-- 鍙殢鍖呭垎鍙?win-x64 鐨?libvlc锛坸86/arm64 鍚?100MB+锛岀敤涓嶄笂锛?-->
+        <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+        <VlcWindowsArm64Enabled>false</VlcWindowsArm64Enabled>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- 缂栬緫鍣ㄩ潤鎬佽祫婧愶紙Quill / marked / turndown锛夐渶瑕佺湡瀹炴枃浠朵緵 WebView2 铏氭嫙涓绘満鏄犲皠锛屼笉宓屽叆绋嬪簭闆?-->
+        <AvaloniaResource Include="Assets\**" Exclude="Assets\editor\**" />
+        <AvaloniaResource Include="Styles\**" />
+        <None Update="Assets\editor\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <!-- tools/ 涓嬫槸鐙珛鐨勬牎楠屽伐绋嬶紝涓嶅弬涓庝富搴旂敤缂栬瘧 -->
+    <ItemGroup>
+        <Compile Remove="tools\**\*.cs" />
+        <EmbeddedResource Remove="tools\**" />
+        <None Remove="tools\**" />
+        <AvaloniaXaml Remove="tools\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia" Version="12.0.4" />
+        <PackageReference Include="Avalonia.Desktop" Version="12.0.4" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
+        <PackageReference Include="SukiUI" Version="7.0.1" />
+        <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.4" />
+        <PackageReference Include="Material.Icons.Avalonia" Version="3.0.2" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+        <PackageReference Include="LibVLCSharp" Version="3.10.2" />
+        <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
+        <!-- PDF 闃呰鍣細PDFium 钖勫皝瑁咃紝win-x64 鍘熺敓搴?7鈥?0MB -->
+        <PackageReference Include="Docnet.Core" Version="2.6.0" />
+        <!-- 鍦ㄧ嚎鏂囨。瀵屾枃鏈紪杈戝櫒瀹夸富锛坱ask-138锛夛細WebView2 鎺т欢 + 鏈湴 Quill -->
+        <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3719.77" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,69 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bond
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+  application:
+    name: bond-transfer
+  servlet:
+    multipart:
+      # 全局硬上限取最高档位 max_file_size（team=20GB，见 V3__entitlements.sql）；
+      # 按用户档位的精细上限由 UploadPreflightFilter（Content-Length 预检）与业务层判定。
+      # 部署侧 nginx client_max_body_size 与服务器挂载的 application-transfer.yml 必须同步为
+      # 20480m / ${BOND_MAX_UPLOAD_SIZE:20GB}；三者覆盖关系见 docs/upload-limits.md。
+      max-file-size: ${BOND_MAX_UPLOAD_SIZE:20GB}
+      max-request-size: ${BOND_MAX_UPLOAD_SIZE:20GB}
+  web:
+    resources:
+      # task-87：/favicon.svg 等静态资源允许浏览器/CDN 缓存 1 天；不影响 API 响应（API 均带 no-cache）
+      cache:
+        cachecontrol:
+          max-age: 1d
+          cache-public: true
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 对象存储（S3 兼容：MinIO / RustFS / Garage / R2 / B2）
+# 解析顺序：storage.* -> 旧 minio.*（兼容旧部署文件）-> 内置默认值；详见 StorageSettings。
+# 切换 RustFS 只需改 endpoint（以及必要时 access-key/secret-key），bucket/region/path-style 可不动。
+storage:
+  endpoint: ${STORAGE_ENDPOINT:}
+  access-key: ${STORAGE_ACCESS_KEY:}
+  secret-key: ${STORAGE_SECRET_KEY:}
+  bucket: ${STORAGE_BUCKET:}
+  region: ${STORAGE_REGION:us-east-1}
+  path-style: ${STORAGE_PATH_STYLE:true}
+  presign-expiry-seconds: ${STORAGE_PRESIGN_EXPIRY_SECONDS:3600}
+
+# 发信网关（task-63 v3）：管理台重置密码、编辑邮箱时发通知邮件；参数以 DB 配置为唯一主来源，
+# 这里只作未配置 DB 时的环境变量兜底。默认 provider=off（未配置）→ 发信接口返回 503。
+# ⚠️ 不允许在仓库写入真实服务商域名/口令；口令与 Key 在 DB 中为 enc:v1: 密文。
+bond:
+  email:
+    provider: ${BOND_EMAIL_PROVIDER:off}
+    from: ${BOND_EMAIL_FROM:}
+    resend:
+      endpoint: ${BOND_EMAIL_RESEND_ENDPOINT:https://api.resend.com}
+
+# 容器 healthcheck 用：只暴露 health/info（不要加 env/metrics 全量）；
+# /actuator/health 不在 /api/ 下，InternalAuthFilter 不会拦截，PublicEndpoints 白名单也不要放行。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+

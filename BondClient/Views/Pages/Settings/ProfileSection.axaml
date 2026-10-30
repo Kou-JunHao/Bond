@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.ProfileSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-153：个人资料（头像 / 昵称 / 账号与设备码只读）；task-155：头像上传 / 移除 -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                        BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="12">
+
+                <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                    <!-- 头像：可点上传（无头像=首字母、有头像=服务端图片、上传中=遮罩） -->
+                    <Panel Width="64" Height="64" VerticalAlignment="Center">
+                        <Button Width="64" Height="64" Padding="0" CornerRadius="32"
+                                Background="Transparent" BorderThickness="0"
+                                Click="OnChangeAvatarClick"
+                                IsEnabled="{Binding CanEditAvatar}"
+                                ToolTip.Tip="更换头像"
+                                AutomationProperties.Name="更换头像">
+                            <Border Width="64" Height="64" CornerRadius="32" ClipToBounds="True"
+                                    Background="{DynamicResource BondAccentSoft}">
+                                <Panel>
+                                    <Image Source="{Binding AvatarSource}" Stretch="UniformToFill"
+                                           IsVisible="{Binding HasAvatar}" />
+                                    <TextBlock Text="{Binding AccountInitial}" FontSize="24" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BondAccent}"
+                                               IsVisible="{Binding !HasAvatar}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
+                            </Border>
+                        </Button>
+                        <Border IsVisible="{Binding IsUploadingAvatar}" Background="#B3000000" CornerRadius="32">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                <ProgressBar IsIndeterminate="True" Width="38" Height="4" />
+                                <TextBlock Text="上传中…" FontSize="10" Foreground="White"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Panel>
+
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Spacing="6">
+                        <TextBlock Text="{Binding AccountName}" FontSize="16" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="meta" Text="点击头像或「更换头像」上传，支持 PNG / JPEG / WebP，不超过 2 MB" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="soft" MinHeight="32" Padding="14,0"
+                                    Click="OnChangeAvatarClick"
+                                    IsEnabled="{Binding CanEditAvatar}"
+                                    AutomationProperties.Name="更换头像按钮">
+                                <TextBlock Text="{Binding AvatarButtonText}" FontSize="12.5" />
+                            </Button>
+                            <Button Classes="soft" MinHeight="32" Padding="14,0"
+                                    Command="{Binding RequestRemoveAvatarCommand}"
+                                    IsVisible="{Binding HasAvatar}"
+                                    IsEnabled="{Binding CanEditAvatar}"
+                                    AutomationProperties.Name="移除头像">
+                                <TextBlock Text="移除头像" FontSize="12.5" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 头像操作的提示行（成功 / 失败原文 + 失败重试） -->
+                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasAvatarHint}">
+                    <Panel>
+                        <TextBlock Classes="meta" Text="{Binding AvatarHint}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondError}"
+                                   IsVisible="{Binding AvatarHintIsError}" />
+                        <TextBlock Classes="meta" Text="{Binding AvatarHint}" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondSuccess}"
+                                   IsVisible="{Binding !AvatarHintIsError}" />
+                    </Panel>
+                    <Button Grid.Column="1" Classes="soft" MinHeight="32" Padding="14,0" Margin="10,0,0,0"
+                            Command="{Binding RetryAvatarCommand}"
+                            IsVisible="{Binding AvatarRetryVisible}"
+                            AutomationProperties.Name="重试上传头像">
+                        <TextBlock Text="重试" FontSize="12.5" />
+                    </Button>
+                </Grid>
+
+                <!-- 移除头像：内联二次确认 -->
+                <Border IsVisible="{Binding HasAvatarConfirmOpen}"
+                        Background="{DynamicResource BondAccentSoft}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                        CornerRadius="10" Padding="12">
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="确定移除当前头像？移除后将回退为首字母头像。" FontSize="12.5"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+                            <Button Classes="soft" MinHeight="32" Padding="14,0"
+                                    Command="{Binding CancelRemoveAvatarCommand}"
+                                    AutomationProperties.Name="取消移除头像">
+                                <TextBlock Text="取消" FontSize="12.5" />
+                            </Button>
+                            <Button Classes="primary" MinHeight="32" Padding="14,0"
+                                    Command="{Binding ConfirmRemoveAvatarCommand}"
+                                    AutomationProperties.Name="确认移除头像">
+                                <TextBlock Text="确认移除" FontSize="12.5" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Classes="rule" Margin="0" />
+
+                <!-- 昵称：可编辑 + 保存（loading / 成功 / 失败三态由 hint 承担） -->
+                <Grid ColumnDefinitions="200,*" MinHeight="40">
+                    <TextBlock Text="昵称" FontSize="12.5" VerticalAlignment="Center" />
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBox Text="{Binding ProfileNickname, Mode=TwoWay}" Classes="input"
+                                 Height="34" MaxLength="24" VerticalContentAlignment="Center"
+                                 AutomationProperties.Name="昵称"
+                                 IsEnabled="{Binding !IsSavingProfile}" />
+                        <Button Grid.Column="1" Classes="soft" Margin="8,0,0,0" MinWidth="96"
+                                Command="{Binding SaveProfileCommand}"
+                                IsEnabled="{Binding CanSaveProfile}"
+                                AutomationProperties.Name="保存昵称">
+                            <TextBlock Text="{Binding SaveProfileButtonText}" FontSize="12.5" />
+                        </Button>
+                    </Grid>
+                </Grid>
+
+                <TextBlock Classes="meta" Text="{Binding ProfileHint}"
+                           Foreground="{DynamicResource BondError}"
+                           IsVisible="{Binding ProfileHintIsError}" TextWrapping="Wrap" />
+                <TextBlock Classes="meta" Text="{Binding ProfileHint}"
+                           Foreground="{DynamicResource BondSuccess}"
+                           IsVisible="{Binding !ProfileHintIsError}"
+                           TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="200,*" MinHeight="40">
+                    <TextBlock Text="账号" FontSize="12.5" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding AccountName}" VerticalAlignment="Center"
+                               FontSize="12.5" Foreground="{DynamicResource BondSecondary}" />
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" MinHeight="40">
+                    <TextBlock Text="设备码" FontSize="12.5" VerticalAlignment="Center" />
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding DeviceCode}" VerticalAlignment="Center"
+                                   FontSize="12.5" Foreground="{DynamicResource BondSecondary}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1" Classes="soft" Margin="8,0,0,0" Padding="10,0"
+                                Height="32" Click="OnCopyDeviceCodeClick"
+                                ToolTip.Tip="复制设备码">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="ContentCopy" IconSize="14" />
+                                <TextBlock Text="复制" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+
+            </StackPanel>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>

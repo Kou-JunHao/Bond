@@ -1,0 +1,46 @@
+﻿# build outputs
+**/bin/
+**/obj/
+**/target/
+dist/
+publish/
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# dependencies
+node_modules/
+
+# runtime / local data
+*.log
+*.dmp
+*.tmp
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*sshkey*
+auth.json
+token.txt
+uploads.json
+*.pfx
+*.p12
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# local-only artifacts
+*.zip
+*.tar
+*.tar.gz
+*.bin
+session-*.md
+reports/
+BondClient/docs/screenshots/

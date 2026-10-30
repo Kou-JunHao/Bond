@@ -1,0 +1,465 @@
+<Window x:Class="Bond.Views.FloatingBallWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Bond.ViewModels"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:DataType="vm:FloatingBallViewModel"
+        WindowDecorations="None"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        ShowInTaskbar="False"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        Title="Bond">
+
+    <Window.Styles>
+        <!-- 顶部四个高频动作：一排图标格（不带大卡片，省高度） -->
+        <Style Selector="Button.tile">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Height" Value="66" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.tile /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style Selector="Button.tile:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+        <Style Selector="Button.panelicon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.panelicon /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.panelicon:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+        <Style Selector="Button.devrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,5" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Height" Value="32" />
+        </Style>
+        <Style Selector="Button.devrow /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.devrow:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+        </Style>
+    </Window.Styles>
+
+    <!-- Padding 是窗口的透明边，球体在其中居中 -->
+    <Border Name="RootContainer" Background="Transparent" Padding="20">
+        <Panel>
+
+            <!-- 待处理光晕（仅在球体状态可见，位于球外一圈） -->
+            <Border Name="PendingGlow"
+                    Width="64" Height="64" CornerRadius="32"
+                    BorderThickness="2"
+                    BorderBrush="{DynamicResource BondAccent}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    IsVisible="False" Opacity="0">
+                <Border.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Opacity" Duration="0:0:0.45" />
+                    </Transitions>
+                </Border.Transitions>
+            </Border>
+
+            <Border Name="BallBorder"
+                    Width="56" Height="56"
+                    CornerRadius="28"
+                    Background="{DynamicResource BondBg}"
+                    BorderBrush="{DynamicResource BondBorder}"
+                    BorderThickness="1"
+                    BoxShadow="0 4 16 0 #26000000"
+                    RenderTransformOrigin="50%,50%"
+                    PointerPressed="OnPointerPressed"
+                    PointerMoved="OnPointerMoved"
+                    PointerReleased="OnPointerReleased"
+                    PointerEntered="OnPointerEntered"
+                    PointerExited="OnPointerExited">
+                <Border.Clip>
+                    <RectangleGeometry Rect="0,0,56,56" RadiusX="28" RadiusY="28" />
+                </Border.Clip>
+                <Border.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="打开主界面" Click="OnOpenMainClick" />
+                        <MenuItem Header="隐藏悬浮球" Click="OnHideBallClick" />
+                        <Separator />
+                        <MenuItem Header="退出 Bond" Click="OnExitClick" />
+                    </ContextMenu>
+                </Border.ContextMenu>
+                <Border.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
+
+                <Panel>
+
+                    <!-- ═══ 快捷面板 ═══ -->
+                    <Border Name="PanelContent" Background="{DynamicResource BondBg}" Opacity="0" IsVisible="False">
+                        <Grid RowDefinitions="58,Auto,*,22" Margin="16,6,16,8">
+
+                            <!-- ① 身份：账号头像 + 账号名 + 本机设备与连接状态 -->
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                                <Border Width="30" Height="30" CornerRadius="15"
+                                        Background="{DynamicResource BondAccentSoft}"
+                                        VerticalAlignment="Center">
+                                    <Panel>
+                                        <TextBlock Text="{Binding AccountInitial}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BondAccent}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding !HasAvatar}" />
+                                        <Image Source="{Binding AvatarSource}" Stretch="UniformToFill"
+                                               IsVisible="{Binding HasAvatar}" />
+                                    </Panel>
+                                </Border>
+
+                                <StackPanel Grid.Column="1" Margin="9,0,6,0" Spacing="1"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding AccountName}" FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BondPrimary}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                                                 Fill="{Binding PresenceBrush}" />
+                                        <TextBlock Name="DeviceNameDisplay" FontSize="10.5"
+                                                   Foreground="{DynamicResource BondSecondary}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="·" FontSize="10.5"
+                                                   Foreground="{DynamicResource BondTertiary}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding PresenceText}" FontSize="10.5"
+                                                   Foreground="{DynamicResource BondTertiary}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="0"
+                                            VerticalAlignment="Center">
+                                    <Button Classes="panelicon" Click="OnCollapseClick"
+                                            ToolTip.Tip="收起">
+                                        <mi:MaterialIcon Kind="ChevronUp" IconSize="16"
+                                                         Foreground="{DynamicResource BondSecondary}" />
+                                    </Button>
+                                    <Button Classes="panelicon" Click="OnOpenMainClick"
+                                            ToolTip.Tip="打开主界面">
+                                        <mi:MaterialIcon Kind="Monitor" IconSize="16"
+                                                         Foreground="{DynamicResource BondSecondary}" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- ② 四个高频动作（未读 / 待接收数字直接标在格子上） -->
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding QuickActions}" Margin="0,2,0,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="4" Rows="1" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:QuickAction">
+                                        <Button Classes="tile" Command="{Binding Command}">
+                                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                                                <Grid HorizontalAlignment="Center">
+                                                    <mi:MaterialIcon Kind="{Binding Icon}" IconSize="21"
+                                                                     Foreground="{DynamicResource BondAccent}"
+                                                                     HorizontalAlignment="Center" />
+                                                    <Border IsVisible="{Binding HasBadge}"
+                                                            MinWidth="16" Height="16" CornerRadius="8"
+                                                            Background="{DynamicResource BondError}"
+                                                            BorderBrush="{DynamicResource BondBg}" BorderThickness="1.5"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                            Margin="12,-5,-12,0"
+                                                            IsHitTestVisible="False">
+                                                        <TextBlock Text="{Binding Badge}" FontSize="9"
+                                                                   FontWeight="Bold" Foreground="White"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" Margin="3,0" />
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock Text="{Binding Title}" FontSize="11.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource BondPrimary}"
+                                                           HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- ③④⑤ 中间区：额度 / 进行中 / 待接收 / 设备（内容多时整体滚动） -->
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                              <StackPanel Spacing="8">
+
+                            <!-- ③ 空间额度（拿不到就整块隐藏） -->
+                            <Border IsVisible="{Binding HasQuota}"
+                                    Background="{DynamicResource BondSurfaceAlt}"
+                                    CornerRadius="10" Padding="10,8" Margin="0,2,0,0">
+                                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Text="空间" FontSize="11"
+                                               Foreground="{DynamicResource BondSecondary}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding QuotaText}" FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource BondPrimary}"
+                                               VerticalAlignment="Center" />
+                                    <ProgressBar Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,0" Height="4"
+                                                 Minimum="0" Maximum="1"
+                                                 Value="{Binding QuotaPercent}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding QuotaPercentText}"
+                                               FontSize="10" Margin="0,8,0,0"
+                                               Foreground="{DynamicResource BondTertiary}"
+                                               HorizontalAlignment="Right" />
+                                </Grid>
+                            </Border>
+
+                            <!-- ④ 进行中的传输 / 待接收任务（没有就整块不占位） -->
+                            <StackPanel Spacing="8">
+
+                                <!-- 拖拽上传（球内发起的上传，带真实进度） -->
+                                <Border Background="{DynamicResource BondSurface}"
+                                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                        CornerRadius="10" Padding="10,8"
+                                        IsVisible="{Binding IsUploading}">
+                                    <Grid RowDefinitions="Auto,Auto,Auto">
+                                        <TextBlock Text="{Binding UploadName}" FontSize="11.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BondPrimary}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <ProgressBar Grid.Row="1" Margin="0,5,0,0" Height="4"
+                                                     Minimum="0" Maximum="1"
+                                                     Value="{Binding UploadProgress}" />
+                                        <TextBlock Grid.Row="2" Text="{Binding UploadStatusText}"
+                                                   FontSize="10" Margin="0,3,0,0"
+                                                   Foreground="{DynamicResource BondTertiary}" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- 传输中心里的进行中任务（主窗口发起的也算） -->
+                                <Border Background="{DynamicResource BondSurface}"
+                                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                        CornerRadius="10" Padding="10,8"
+                                        IsVisible="{Binding HasActiveTransfer}">
+                                    <Grid RowDefinitions="Auto,Auto">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding TransferCountText}" FontSize="11.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource BondPrimary}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding TransferText}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource BondAccent}" />
+                                        </Grid>
+                                        <ProgressBar Grid.Row="1" Margin="0,6,0,0" Height="4"
+                                                     Minimum="0" Maximum="1"
+                                                     Value="{Binding TransferProgress}" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- 待接收任务 -->
+                                <Border Background="{DynamicResource BondSurface}"
+                                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                        CornerRadius="10" Padding="10,8"
+                                        IsVisible="{Binding HasTasks}">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="{Binding TasksHeader}" FontSize="11.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BondPrimary}" />
+                                        <ItemsControl ItemsSource="{Binding Tasks}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:BallTaskItem">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto" Height="30">
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontSize="11"
+                                                                       Foreground="{DynamicResource BondPrimary}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Meta}" FontSize="9.5"
+                                                                       Foreground="{DynamicResource BondTertiary}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1" Classes="panelicon"
+                                                                Width="26" Height="26" Margin="4,0,0,0"
+                                                                Command="{Binding AcceptCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="接收">
+                                                            <mi:MaterialIcon Kind="Check" IconSize="14"
+                                                                             Foreground="{DynamicResource BondSuccess}" />
+                                                        </Button>
+                                                        <Button Grid.Column="2" Classes="panelicon"
+                                                                Width="26" Height="26" Margin="2,0,0,0"
+                                                                Command="{Binding RejectCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="拒绝">
+                                                            <mi:MaterialIcon Kind="Close" IconSize="14"
+                                                                             Foreground="{DynamicResource BondTertiary}" />
+                                                        </Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ⑤ 设备（真正可发送的只有「别的在线设备」，本机状态已在头部） -->
+                            <Border VerticalAlignment="Top"
+                                    Background="{DynamicResource BondSurface}"
+                                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                    CornerRadius="10" Padding="10,8">
+                                <Grid RowDefinitions="Auto,*">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="设备" FontSize="11.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource BondPrimary}"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Classes="panelicon"
+                                                Width="22" Height="22"
+                                                Command="{Binding RefreshDevicesCommand}"
+                                                ToolTip.Tip="刷新设备与额度">
+                                            <mi:MaterialIcon Kind="Sync" IconSize="12"
+                                                             Foreground="{DynamicResource BondTertiary}" />
+                                        </Button>
+                                    </Grid>
+
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                                  Margin="0,2,0,0" MaxHeight="150">
+                                        <StackPanel>
+                                            <ItemsControl ItemsSource="{Binding DeviceRows}"
+                                                          IsVisible="{Binding HasDevices}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:BallDeviceItem">
+                                                        <Button Classes="devrow"
+                                                                Command="{Binding SendCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding CanSend}">
+                                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                <Ellipse Width="6" Height="6"
+                                                                         Fill="{Binding DotBrush}"
+                                                                         VerticalAlignment="Center"
+                                                                         Margin="0,0,7,0" />
+                                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Name}" FontSize="11"
+                                                                               Foreground="{DynamicResource BondPrimary}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Text="{Binding Meta}" FontSize="9.5"
+                                                                               Foreground="{DynamicResource BondTertiary}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+                                                                <mi:MaterialIcon Grid.Column="2"
+                                                                                 Kind="SendOutline" IconSize="12"
+                                                                                 Foreground="{DynamicResource BondTertiary}"
+                                                                                 VerticalAlignment="Center" />
+                                                            </Grid>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="{Binding DeviceHintText}" FontSize="10"
+                                                       TextWrapping="Wrap" Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource BondTertiary}"
+                                                       IsVisible="{Binding !HasOnlineDevices}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
+
+                              </StackPanel>
+                            </ScrollViewer>
+
+                            <!-- ⑥ 底部：设备码与版本（打开主界面在头部，避免三处重复入口） -->
+                            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding DeviceCode}" FontSize="9.5"
+                                           Foreground="{DynamicResource BondTertiary}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding VersionText}" FontSize="9.5"
+                                           Foreground="{DynamicResource BondTertiary}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" Margin="8,0,0,0" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- 待处理徽标 -->
+                    <Border Name="Badge" IsVisible="False"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Margin="0,1,2,0"
+                            MinWidth="19" Height="19" CornerRadius="9.5"
+                            Background="{DynamicResource BondError}"
+                            BorderBrush="White" BorderThickness="2"
+                            IsHitTestVisible="False">
+                        <TextBlock Text="{Binding PendingText}" FontSize="10" FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Margin="4,0" />
+                    </Border>
+
+                    <!-- 球体本体 = 原版 logo（蓝底白符号） -->
+                    <Canvas IsHitTestVisible="False">
+                        <Image Name="MorphIcon"
+                               Source="avares://Bond/Assets/logo.png"
+                               Width="32" Height="32"
+                               Canvas.Left="12" Canvas.Top="12"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    <TranslateTransform X="0" Y="0" />
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+                    </Canvas>
+                </Panel>
+            </Border>
+
+            <!-- 拖拽提示（拖文件到球上时出现） -->
+            <Border Name="DropHint" IsVisible="{Binding IsDragOver}"
+                    Background="{DynamicResource BondBg}"
+                    BorderBrush="{DynamicResource BondAccent}" BorderThickness="1.5"
+                    CornerRadius="14" Padding="14,10"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsHitTestVisible="False">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <mi:MaterialIcon Kind="Upload" IconSize="16"
+                                     Foreground="{DynamicResource BondAccent}"
+                                     VerticalAlignment="Center" />
+                    <TextBlock Text="松开上传到个人空间" FontSize="12"
+                               Foreground="{DynamicResource BondPrimary}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Toast -->
+            <Border Name="ToastOverlay" IsVisible="False"
+                    Background="{DynamicResource BondPrimary}"
+                    CornerRadius="10" Padding="13,9"
+                    MaxWidth="320" HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom" Margin="0,0,0,18"
+                    IsHitTestVisible="False">
+                <TextBlock Name="ToastText" FontSize="12" Foreground="White"
+                           TextWrapping="Wrap" MaxWidth="290" />
+            </Border>
+        </Panel>
+    </Border>
+</Window>

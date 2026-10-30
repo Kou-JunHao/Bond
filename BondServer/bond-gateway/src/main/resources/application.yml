@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bond-gateway
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 600000
+        response-timeout: 43200s
+      routes:
+        - id: bond-auth
+          uri: ${BOND_AUTH_URI:http://127.0.0.1:8081}
+          predicates:
+            - Path=/api/auth/**,/api/devices/**,/api/friends/**,/api/users/**
+        - id: bond-transfer
+          uri: ${BOND_TRANSFER_URI:http://127.0.0.1:8082}
+          predicates:
+            - Path=/api/transfer/**,/api/workspaces/**,/api/files/**,/api/trash/**,/api/entitlements/**,/api/webdav/**,/api/documents/**,/api/chat/**,/api/announcements/**,/api/admin/**,/api/invite/**,/api/redeem,/api/shares/**,/api/software/**,/s/**,/i/**,/dav,/dav/**,/favicon.svg
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+bond:
+  gateway:
+    # task-68：仅信任来自这些代理（本机 / 1panel-network）的 X-Real-IP / X-Forwarded-For；
+    # 其它来源的代理头一律忽略，并且网关会把转发头覆盖成单一真实客户端 IP 后再下发。
+    trusted-proxies: ${BOND_GATEWAY_TRUSTED_PROXIES:127.0.0.1,::1,172.18.0.0/16}
+  cors:
+    # task-126：CORS 白名单。生产用 BOND_CORS_ALLOWED_ORIGINS 覆盖（逗号分隔）；
+    # 写 "*" 会允许所有来源但强制关闭 credentials 并打 WARN，禁止二者同时成立。
+    # 自身站点（bond-api / api）必须在内：分享落地页 POST /s/{token}/verify 是同源请求，
+    # 但浏览器会带 https Origin，而网关从 nginx 收到的是 http 回源 → 会被当成跨域校验（2026-10-29 修复）。
+    allowed-origins: ${BOND_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://admin.sg.skkk.uno,https://bond-admin.sg.skkk.uno,https://bond-api.sg.skkk.uno,https://api.sg.skkk.uno}
+
+# 容器 healthcheck 用：只暴露 health/info；不经过路由/JWT。nginx 侧建议 /actuator/ 直接 404
+# （见 deploy/OPS-BASELINE.md），避免 GET / 反代把 health 暴露到公网。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never

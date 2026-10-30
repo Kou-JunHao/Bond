@@ -1,0 +1,209 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.AboutSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-142：从 SettingsPage 拆出的「关于与更新」分组（绑定名沿用原样） -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <!-- 关于与更新（task-86） -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="10">
+                <TextBlock Classes="h2" Text="关于与更新" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding AboutVersionText, StringFormat='当前版本 v{0}'}"
+                                   Classes="settingsmono"
+                                   FontSize="12.5" Foreground="{DynamicResource BondPrimary}" />
+                        <TextBlock Text="检查更新只查询生产发布，不会自动安装；下载后由你手动运行安装包。"
+                                   FontSize="11.5" LineHeight="18" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource BondTertiary}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="soft" Padding="14,6" VerticalAlignment="Center"
+                            Command="{Binding CheckUpdateCommand}" IsEnabled="{Binding !IsUpdateChecking}"
+                            ToolTip.Tip="查询生产环境的已发布版本">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <mi:MaterialIcon Kind="CloudDownloadOutline" IconSize="13"
+                                             Foreground="{DynamicResource BondPrimary}" />
+                            <TextBlock Text="检查更新" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <!-- task-141：检查频率 / 自动下载 / 通道由用户决定；默认全部关闭 -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
+                    <TextBlock Text="检查频率" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource BondSecondary}" />
+                    <ComboBox Grid.Column="1" Margin="10,0,18,0" MinWidth="150" VerticalAlignment="Center"
+                              SelectedIndex="{Binding UpdateFrequencyIndex, Mode=TwoWay}"
+                              ToolTip.Tip="默认「从不」：不检查也不打扰；只有你选择的时机才会查询更新">
+                        <ComboBoxItem Content="从不" />
+                        <ComboBoxItem Content="每次启动" />
+                        <ComboBoxItem Content="每天一次" />
+                        <ComboBoxItem Content="每周一次" />
+                    </ComboBox>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <CheckBox IsChecked="{Binding UpdateAutoDownload, Mode=TwoWay}"
+                                  ToolTip.Tip="检查到新版本时自动下载安装包（仍由你确认安装）" />
+                        <TextBlock Text="自动下载安装包" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BondSecondary}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" Margin="18,0,0,0"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="通道" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource BondSecondary}" />
+                        <ComboBox MinWidth="110" SelectedIndex="{Binding UpdateChannelIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="稳定版" />
+                            <ComboBoxItem Content="测试通道" />
+                        </ComboBox>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Margin="0,6,0,0" FontSize="11"
+                               TextWrapping="Wrap" Foreground="{DynamicResource BondWarning}"
+                               Text="{Binding UpdateChannelHint}"
+                               IsVisible="{Binding UpdateChannelHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </Grid>
+
+                <!-- 强制更新：不可关闭，只能去下载安装 -->
+                <Border IsVisible="{Binding IsForceUpdate}"
+                        Background="{DynamicResource BondSurfaceAlt}" BorderBrush="{DynamicResource BondError}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,8">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="需要更新后才能继续使用" FontSize="12" FontWeight="Medium"
+                                   Foreground="{DynamicResource BondError}" />
+                        <TextBlock Text="{Binding ForceUpdateText}" FontSize="11" TextWrapping="Wrap"
+                                   LineHeight="17" Foreground="{DynamicResource BondSecondary}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 已忽略版本：可一键恢复提示 -->
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasIgnoredVersion}">
+                    <TextBlock Text="{Binding IgnoredVersionText}" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{DynamicResource BondTertiary}" />
+                    <Button Classes="soft" Padding="10,4" Command="{Binding RestoreIgnoredVersionCommand}">
+                        <TextBlock Text="恢复提示" FontSize="11" />
+                    </Button>
+                </StackPanel>
+
+                <Border IsVisible="{Binding ShowUpdateCard}"
+                        Background="{DynamicResource BondSurfaceAlt}"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                        CornerRadius="10" Padding="14,10">
+                    <StackPanel Spacing="7">
+                        <TextBlock Text="{Binding UpdateStatusText}" FontSize="12.5" FontWeight="Medium"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource BondPrimary}" />
+
+                        <TextBlock Text="{Binding UpdateDetailText}" FontSize="11.5" LineHeight="18"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource BondSecondary}"
+                                   IsVisible="{Binding UpdateDetailText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                        <!-- 有更新：下载 / 忽略此版本 -->
+                        <StackPanel Spacing="4" IsVisible="{Binding HasUpdate}">
+                            <TextBlock Text="{Binding UpdateChecksumText}" FontSize="10.5"
+                                       Foreground="{DynamicResource BondTertiary}"
+                                       ToolTip.Tip="{Binding UpdateChecksumFull}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="primary" Padding="14,6"
+                                    Command="{Binding DownloadUpdateCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <mi:MaterialIcon Kind="DownloadOutline" IconSize="13" Foreground="{DynamicResource BondOnAccent}" />
+                                    <TextBlock Text="下载安装包" FontSize="12" Foreground="{DynamicResource BondOnAccent}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="soft" Padding="12,5" Command="{Binding IgnoreCurrentUpdateCommand}"
+                                    IsVisible="{Binding !IsForceUpdate}"
+                                    ToolTip.Tip="不再提示这个版本；手动「检查更新」仍可看到">
+                                <TextBlock Text="忽略此版本" FontSize="12" />
+                            </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 下载中：真实进度 + 速度 + 取消 -->
+                        <StackPanel Spacing="5" IsVisible="{Binding IsDownloadingUpdate}">
+                            <ProgressBar Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" Height="6" />
+                            <Grid ColumnDefinitions="*,Auto,Auto">
+                                <TextBlock Text="{Binding DownloadStatusText}" FontSize="11"
+                                           Foreground="{DynamicResource BondSecondary}" TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="1" Margin="12,0,10,0" Text="{Binding DownloadSpeedText}" FontSize="11"
+                                           Foreground="{DynamicResource BondTertiary}" VerticalAlignment="Center" />
+                                <Grid Grid.Column="2" ColumnDefinitions="Auto,Auto">
+                                    <TextBlock Text="{Binding DownloadProgressText}" FontSize="11" Margin="0,0,10,0"
+                                               Foreground="{DynamicResource BondTertiary}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Classes="soft" Padding="10,3"
+                                            Command="{Binding CancelDownloadCommand}">
+                                        <TextBlock Text="取消" FontSize="11" />
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- 校验失败 -->
+                        <StackPanel Spacing="6" IsVisible="{Binding HasVerifyFailed}">
+                            <TextBlock Text="{Binding DownloadStatusText}" FontSize="11.5" LineHeight="18"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource BondError}" />
+                            <Button Classes="soft" Padding="12,5" HorizontalAlignment="Left"
+                                    Command="{Binding DownloadUpdateCommand}">
+                                <TextBlock Text="重新下载" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 检查失败：可重试（文案见上方 UpdateStatusText） -->
+                        <Button Classes="soft" Padding="12,5" HorizontalAlignment="Left"
+                                Command="{Binding CheckUpdateCommand}"
+                                IsVisible="{Binding HasUpdateError}">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <mi:MaterialIcon Kind="Refresh" IconSize="12"
+                                                 Foreground="{DynamicResource BondPrimary}" />
+                                <TextBlock Text="重试" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 已下载 -->
+                        <StackPanel Spacing="6" IsVisible="{Binding HasDownloaded}">
+                            <TextBlock Text="{Binding DownloadStatusText}" FontSize="11.5" LineHeight="18"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource BondSecondary}" />
+                            <TextBlock Text="{Binding DownloadedPath}" FontSize="10.5" LineHeight="16"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource BondTertiary}"
+                                       ToolTip.Tip="{Binding DownloadedPath}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="primary" Padding="12,5" Command="{Binding OpenInstallerCommand}">
+                                    <TextBlock Text="打开安装包" FontSize="12" Foreground="{DynamicResource BondOnAccent}" />
+                                </Button>
+                                <Button Classes="soft" Padding="12,5" Command="{Binding OpenUpdatesFolderCommand}">
+                                    <TextBlock Text="打开所在文件夹" FontSize="12" />
+                                </Button>
+                            </StackPanel>
+                            <Button Classes="soft" Padding="12,5" HorizontalAlignment="Left"
+                                    Command="{Binding ExitForInstallCommand}"
+                                    IsVisible="{Binding IsInstallerStarted}">
+                                <TextBlock Text="退出 Bond（安装完成后重新打开）" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+
+                        <!-- 更新说明 -->
+                        <TextBlock Text="{Binding UpdateNotesText}" FontSize="11.5" LineHeight="18"
+                                   TextWrapping="Wrap" MaxHeight="120"
+                                   IsVisible="{Binding HasUpdateNotes}"
+                                   Foreground="{DynamicResource BondSecondary}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding CheckedAtText}" FontSize="10.5"
+                           Foreground="{DynamicResource BondTertiary}"
+                           IsVisible="{Binding CheckedAtText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </suki:GlassCard>
+
+        <!-- task-133：键盘快捷键帮助入口（与文件页 ? / Ctrl+/ 等价） -->
+        <Button Classes="soft" HorizontalAlignment="Left" Padding="14,7" Margin="0,2,0,0"
+                Click="OnShortcutsClick" ToolTip.Tip="查看文件页与全局的键盘快捷键">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="Keyboard" IconSize="13" />
+                <TextBlock Text="查看键盘快捷键" FontSize="12.5" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</UserControl>

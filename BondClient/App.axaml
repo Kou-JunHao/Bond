@@ -1,0 +1,96 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="Bond.App"
+             RequestedThemeVariant="Light">
+
+    <Application.Styles>
+        <suki:SukiTheme ThemeColor="Orange" />
+        <mi:MaterialIconStyles />
+        <StyleInclude Source="avares://Bond/Styles/Typography.axaml" />
+        <StyleInclude Source="avares://Bond/Styles/Menu.axaml" />
+    </Application.Styles>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- task-150：全局 UI 字体 MiSans（子集，见 Assets/fonts/README.md）。
+                 逗号后继为系统回退链：MiSans 子集不含 emoji / 极少数符号，
+                 交给系统字体补，避免豆腐块。 -->
+            <FontFamily x:Key="BondUIFont">avares://Bond/Assets/fonts#MiSans, Microsoft YaHei UI, Segoe UI Emoji, Segoe UI</FontFamily>
+
+            <ResourceDictionary.ThemeDictionaries>
+
+                <!-- ══ 浅色：暖白底 + logo 橙 ══ -->
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="BondPrimary" Color="#FF1B1A17" />
+                    <SolidColorBrush x:Key="BondSecondary" Color="#FF56514A" />
+                    <SolidColorBrush x:Key="BondTertiary" Color="#FF8A857C" />
+
+                    <SolidColorBrush x:Key="BondBg" Color="#FFFAF9F5" />
+                    <SolidColorBrush x:Key="BondSurface" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="BondSurfaceAlt" Color="#FFF1EEE8" />
+                    <SolidColorBrush x:Key="BondSurfaceHigh" Color="#FFE8E3D9" />
+                    <SolidColorBrush x:Key="BondSurfaceHover" Color="#FFEAE6DE" />
+                    <SolidColorBrush x:Key="BondBorder" Color="#FFE4E0D8" />
+                    <!-- task-131：输入框专用描边（比卡片描边深一级；亮色下白底白框不可见的根因在此） -->
+                    <SolidColorBrush x:Key="BondBorderStrong" Color="#FFC9C1B2" />
+
+                    <SolidColorBrush x:Key="BondAccent" Color="#FFE57153" />
+                    <SolidColorBrush x:Key="BondAccentDeep" Color="#FFC85B3F" />
+                    <SolidColorBrush x:Key="BondAccentSoft" Color="#FFFCEBE5" />
+                    <!-- 平铺卡片交互态：强调色 40% 描边 / 8% 填充（明暗两套一致，只换基色） -->
+                    <SolidColorBrush x:Key="BondAccentBorder" Color="#66E57153" />
+                    <SolidColorBrush x:Key="BondAccentFill" Color="#14E57153" />
+                    <!-- 选中态填充（12% 强调色），平铺单元格用 -->
+                    <SolidColorBrush x:Key="BondAccentFillStrong" Color="#1FE57153" />
+                    <!-- task-177：强调色实底上的文字（禁纯白；暖白保证橙底对比度） -->
+                    <SolidColorBrush x:Key="BondOnAccent" Color="#FFFFFCF7" />
+                    <!-- task-166：悬浮操作条底色（8% 透明，让底下内容轻微透出） -->
+                    <SolidColorBrush x:Key="BondSurfaceGlass" Color="#EBFFFFFF" />
+
+                    <SolidColorBrush x:Key="BondSuccess" Color="#FF4C7A5E" />
+                    <SolidColorBrush x:Key="BondWarning" Color="#FFC08A3E" />
+                    <SolidColorBrush x:Key="BondError" Color="#FFB04A42" />
+                    <SolidColorBrush x:Key="BondStroke" Color="#FF8A857C" />
+                    <!-- 预览遮罩 -->
+                    <SolidColorBrush x:Key="BondScrim" Color="#99201E1B" />
+                </ResourceDictionary>
+
+                <!-- ══ 深色：暖黑底，强调色保持品牌一致 ══ -->
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="BondPrimary" Color="#FFF3F0EA" />
+                    <SolidColorBrush x:Key="BondSecondary" Color="#FFB9B3A8" />
+                    <SolidColorBrush x:Key="BondTertiary" Color="#FF857F75" />
+
+                    <SolidColorBrush x:Key="BondBg" Color="#FF161513" />
+                    <SolidColorBrush x:Key="BondSurface" Color="#FF201E1B" />
+                    <SolidColorBrush x:Key="BondSurfaceAlt" Color="#FF292623" />
+                    <SolidColorBrush x:Key="BondSurfaceHigh" Color="#FF332F2A" />
+                    <SolidColorBrush x:Key="BondSurfaceHover" Color="#FF2F2B27" />
+                    <SolidColorBrush x:Key="BondBorder" Color="#FF3A362F" />
+                    <SolidColorBrush x:Key="BondBorderStrong" Color="#FF55504A" />
+
+                    <SolidColorBrush x:Key="BondAccent" Color="#FFF07C5E" />
+                    <SolidColorBrush x:Key="BondAccentDeep" Color="#FFD9674A" />
+                    <SolidColorBrush x:Key="BondAccentSoft" Color="#FF3A2620" />
+                    <SolidColorBrush x:Key="BondAccentBorder" Color="#66F07C5E" />
+                    <SolidColorBrush x:Key="BondAccentFill" Color="#14F07C5E" />
+                    <SolidColorBrush x:Key="BondAccentFillStrong" Color="#1FF07C5E" />
+                    <!-- task-177：强调色实底上的文字（暗色强调更亮，用暖黑反白） -->
+                    <SolidColorBrush x:Key="BondOnAccent" Color="#FF1A1815" />
+                    <!-- task-166：悬浮操作条底色（8% 透明，暗色用暖黑透出内容） -->
+                    <SolidColorBrush x:Key="BondSurfaceGlass" Color="#EB201E1B" />
+
+                    <SolidColorBrush x:Key="BondSuccess" Color="#FF6EA585" />
+                    <SolidColorBrush x:Key="BondWarning" Color="#FFD8A45C" />
+                    <SolidColorBrush x:Key="BondError" Color="#FFD97C72" />
+                    <SolidColorBrush x:Key="BondStroke" Color="#FF9C968B" />
+                    <SolidColorBrush x:Key="BondScrim" Color="#B3161513" />
+                </ResourceDictionary>
+
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+</Application>

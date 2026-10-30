@@ -1,0 +1,810 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             xmlns:models="using:Bond.Models"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             x:Class="Bond.Views.Pages.WorkspacePage"
+             x:DataType="vm:WorkspacePageViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*" Margin="24,18,24,20">
+
+        <!-- 顶部工具条 -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+            <StackPanel Spacing="3">
+                <TextBlock Classes="h1" Text="工作区" />
+                <TextBlock Classes="sub" Text="与成员共享文件与配额；owner 可管理成员、邀请与删除" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Classes="ghosticon"
+                        Command="{Binding LoadCommand}" ToolTip.Tip="刷新">
+                    <mi:MaterialIcon Kind="Refresh" IconSize="15" />
+                </Button>
+                <Button Classes="soft" Command="{Binding OpenJoinInviteCommand}"
+                        ToolTip.Tip="粘贴成员发来的邀请链接或邀请码，加入对方的工作区">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="AccountPlusOutline" IconSize="13" />
+                        <TextBlock Text="加入工作区" FontSize="12.5" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="primary" Command="{Binding OpenCreateCommand}"
+                        ToolTip.Tip="创建工作区（名称 + 描述）">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="Plus" IconSize="13" Foreground="{DynamicResource BondOnAccent}" />
+                        <TextBlock Text="新建工作区" FontSize="12.5" Foreground="{DynamicResource BondOnAccent}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- 待处理邀请 -->
+        <Border Grid.Row="1" IsVisible="{Binding HasInvitations}" Margin="0,0,0,12"
+                Background="{DynamicResource BondAccentFill}" BorderBrush="{DynamicResource BondAccentBorder}"
+                BorderThickness="1" CornerRadius="10" Padding="12,9">
+            <StackPanel Spacing="8">
+                <TextBlock Text="待处理邀请" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{DynamicResource BondAccent}" />
+                <ItemsControl ItemsSource="{Binding Invitations}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:WorkspaceInvitation">
+                            <Border Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                                    BorderThickness="1" CornerRadius="8" Padding="10,7">
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Text="{Binding WorkspaceName}" FontSize="12" FontWeight="Medium"
+                                                       TextTrimming="CharacterEllipsis" MaxWidth="180"
+                                                       ToolTip.Tip="{Binding WorkspaceName}" />
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Classes="meta" FontSize="10.5" Text="{Binding FromText}" />
+                                                <TextBlock Classes="meta" FontSize="10.5" Text="{Binding RoleText}"
+                                                           Foreground="{DynamicResource BondAccent}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Button Classes="primary" Padding="10,4" FontSize="11.5"
+                                                Command="{ReflectionBinding $parent[UserControl].DataContext.AcceptInvitationCommand}"
+                                                CommandParameter="{Binding}"
+                                                Content="接受" />
+                                        <Button Classes="outline" Padding="10,4" FontSize="11.5"
+                                                Command="{ReflectionBinding $parent[UserControl].DataContext.RejectInvitationCommand}"
+                                                CommandParameter="{Binding}"
+                                                Content="拒绝" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- 主体 -->
+        <Grid Grid.Row="2">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <Panel>
+                    <ItemsControl ItemsSource="{Binding Workspaces}"
+                                  x:Name="WorkspaceItems"
+                                  SizeChanged="OnWorkspaceItemsSizeChanged">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel x:Name="WorkspaceWrap" ItemWidth="318" ItemSpacing="14" LineSpacing="14" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:WorkspaceItem">
+                                <suki:GlassCard Background="{DynamicResource BondSurface}"
+                                                BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                                IsOpaque="True" Padding="16" Height="200">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+                                        <!-- 头部 -->
+                                        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                                            <Border Width="38" Height="38" CornerRadius="11" Background="{Binding Accent}">
+                                                <TextBlock Text="{Binding Initial}" FontSize="15" FontWeight="SemiBold"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="11,0,8,0" VerticalAlignment="Center"
+                                                        Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                                                <TextBlock Classes="meta" FontSize="11"
+                                                           IsVisible="{Binding HasDescription}"
+                                                           Text="{Binding DescriptionLine}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding DescriptionLine}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="2" CornerRadius="6" Padding="7,3"
+                                                    VerticalAlignment="Top"
+                                                    Background="{DynamicResource BondSurfaceAlt}"
+                                                    ToolTip.Tip="你在该工作区的角色">
+                                                <TextBlock Text="{Binding RoleText}" FontSize="10.5"
+                                                           Foreground="{DynamicResource BondSecondary}" />
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- 元信息 -->
+                                        <TextBlock Grid.Row="1" Margin="0,10,0,0" Classes="meta" FontSize="11.5"
+                                                   Text="{Binding MetaLine}" />
+
+                                        <!-- 配额 -->
+                                        <StackPanel Grid.Row="2" Spacing="5" Margin="0,8,0,0">
+                                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding UsageRatio}" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Classes="meta" FontSize="10.5">
+                                                    <Run Text="{Binding UsedText}" />
+                                                    <Run Text=" / " />
+                                                    <Run Text="{Binding QuotaText}" />
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="1" Text="{Binding RatioText}"
+                                                           Classes="meta" FontSize="10.5" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- 操作 -->
+                                        <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+                                            <Button Classes="primary" Padding="12,5" FontSize="11.5"
+                                                    HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Center"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.OpenCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="打开" />
+                                            <Button Grid.Column="1" Classes="outline" Margin="8,0,0,0"
+                                                    Padding="12,5" FontSize="11.5"
+                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.ManageCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="管理：改名/描述/成员/邀请/删除">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <mi:MaterialIcon Kind="Cog" IconSize="13" />
+                                                    <TextBlock Text="管理" FontSize="11.5" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </suki:GlassCard>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- 加载态 -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                                IsVisible="{Binding IsLoading}" IsHitTestVisible="False">
+                        <ProgressBar IsIndeterminate="True" Width="160" Height="3" />
+                        <TextBlock Classes="meta" Text="正在加载工作区…" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- 错误态 -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                                IsVisible="{Binding HasError}" IsHitTestVisible="False">
+                        <mi:MaterialIcon Kind="AlertCircleOutline" IconSize="26"
+                                         Foreground="{DynamicResource BondTertiary}"
+                                         HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding ErrorText}" FontSize="11.5"
+                                   Foreground="{DynamicResource BondSecondary}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- 空状态 -->
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10"
+                                IsVisible="{Binding IsEmpty}" IsHitTestVisible="False">
+                        <Border Width="56" Height="56" CornerRadius="28"
+                                Background="{DynamicResource BondSurfaceAlt}">
+                            <mi:MaterialIcon Kind="AccountGroup" IconSize="24"
+                                             Foreground="{DynamicResource BondTertiary}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="还没有工作区" FontSize="13" FontWeight="Medium"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="点右上角「新建工作区」开始共享文件；个人文件请用「文件」页的个人空间"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- 新建工作区弹窗 -->
+        <Panel Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsCreateOpen}"
+               Background="#33000000">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="420" CornerRadius="14" Padding="20"
+                    Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="新建工作区" FontSize="15" FontWeight="SemiBold" />
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" Text="名称" />
+                        <TextBox Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                 Text="{Binding NewName}" PlaceholderText="例如：设计协作"
+                                 MaxLength="40" />
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" Text="描述（可选）" />
+                        <TextBox Height="64" TextWrapping="Wrap" AcceptsReturn="True"
+                                 Text="{Binding NewDescription}" PlaceholderText="这个工作区用来做什么…"
+                                 MaxLength="200" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="outline" Content="取消" Command="{Binding CancelCreateCommand}" />
+                        <Button Classes="primary" Content="创建工作区"
+                                Command="{Binding SubmitCreateCommand}"
+                                IsEnabled="{Binding CanCreate}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Panel>
+
+        <!-- 管理抽屉（右侧滑出面板，不新建窗口） -->
+        <Panel Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsManageOpen}">
+            <Border Background="#33000000" />
+            <Border HorizontalAlignment="Right" Width="440" Margin="0,-4,-4,-4"
+                    Background="{DynamicResource BondBg}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,18,20,24" Spacing="14">
+
+                        <!-- 抽屉头 -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="管理工作区" FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock Classes="meta" FontSize="11" Text="{Binding ManageMetaText}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Classes="ghosticon" Padding="4" MinWidth="32" MinHeight="32"
+                                    Command="{Binding CloseManageCommand}" ToolTip.Tip="关闭">
+                                <mi:MaterialIcon Kind="Close" IconSize="14" />
+                            </Button>
+                        </Grid>
+
+                        <!-- 基本信息 -->
+                        <Border Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                                BorderThickness="1" CornerRadius="10" Padding="14">
+                            <StackPanel Spacing="9">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="基本信息" FontSize="12.5" FontWeight="SemiBold" />
+                                    <Border Grid.Column="1" CornerRadius="6" Padding="7,2"
+                                            Background="{DynamicResource BondSurfaceAlt}">
+                                        <TextBlock Text="{Binding ManageRoleText}" FontSize="10.5"
+                                                   Foreground="{DynamicResource BondSecondary}" />
+                                    </Border>
+                                </Grid>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="meta" Text="名称" />
+                                    <TextBox Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                             Text="{Binding ManageName}" IsEnabled="{Binding IsOwner}"
+                                             MaxLength="40" />
+                                </StackPanel>
+                                <StackPanel Spacing="5">
+                                    <TextBlock Classes="meta" Text="描述" />
+                                    <TextBox Height="56" TextWrapping="Wrap" AcceptsReturn="True"
+                                             Text="{Binding ManageDescription}" IsEnabled="{Binding IsOwner}"
+                                             MaxLength="200" />
+                                </StackPanel>
+                                <TextBlock IsVisible="{Binding !IsOwner}" Classes="meta" FontSize="10.5"
+                                           Text="仅所有者可修改信息 / 管理成员。" />
+                                <Button Classes="primary" Content="保存修改" HorizontalAlignment="Right"
+                                        Padding="12,5" FontSize="11.5"
+                                        Command="{Binding SaveManageCommand}"
+                                        IsEnabled="{Binding IsOwner}" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 成员 -->
+                        <Border Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                                BorderThickness="1" CornerRadius="10" Padding="14">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="成员" FontSize="12.5" FontWeight="SemiBold" />
+                                <ItemsControl ItemsSource="{Binding Members}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:WorkspaceMemberItem">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,3">
+                                                <Border Width="26" Height="26" CornerRadius="13"
+                                                        Background="{DynamicResource BondSurfaceHigh}">
+                                                    <TextBlock Text="{Binding Initial}" FontSize="10.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource BondSecondary}"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="8,0,0,0"
+                                                            VerticalAlignment="Center" Spacing="1">
+                                                    <TextBlock Text="{Binding Nickname}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding Nickname}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Classes="meta roletext"
+                                                                   Classes.owner="{Binding IsOwner}"
+                                                                   Classes.admin="{Binding IsAdmin}"
+                                                                   FontSize="10" Text="{Binding RoleText}"
+                                                                   VerticalAlignment="Center" />
+                                                        <!-- task-8：restricted 成员轻量标识 -->
+                                                        <Border IsVisible="{Binding AclRestricted}"
+                                                                Background="{DynamicResource BondAccentSoft}"
+                                                                CornerRadius="4" Padding="5,1"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="该成员只能访问被授权的目录/文件">
+                                                            <TextBlock Text="受限" FontSize="9.5"
+                                                                       Foreground="{DynamicResource BondWarning}" />
+                                                        </Border>
+                                                        <!-- task-8：文件权限入口（仅 owner/admin 对普通成员可见） -->
+                                                        <Button Classes="soft" Padding="7,2" MinHeight="0"
+                                                                FontSize="10" VerticalAlignment="Center"
+                                                                IsVisible="{Binding CanManageAcl}"
+                                                                AutomationProperties.Name="设置文件权限"
+                                                                Command="{ReflectionBinding $parent[UserControl].DataContext.OpenMemberAclCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip.Tip="设置该成员可见的目录/文件（可读/可写）">
+                                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                                <mi:MaterialIcon Kind="ShieldKeyOutline"
+                                                                                 IconSize="10" />
+                                                                <TextBlock Text="{Binding AclButtonText}"
+                                                                           FontSize="10" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <ComboBox Grid.Column="2" Width="118" FontSize="11.5" Padding="8,0"
+                                                          Margin="6,0" VerticalAlignment="Center"
+                                                          IsVisible="{Binding CanChangeRole}"
+                                                          ToolTip.Tip="调整角色（owner 可用）"
+                                                          SelectedIndex="{Binding RoleIndex, Mode=OneWay}"
+                                                          SelectionChanged="OnMemberRoleChanged">
+                                                    <ComboBoxItem Content="管理员" />
+                                                    <ComboBoxItem Content="普通成员" />
+                                                </ComboBox>
+                                                <Button Grid.Column="3" Classes="ghosticon" Padding="3"
+                                                        MinWidth="32" MinHeight="32"
+                                                        IsVisible="{Binding CanRemove}"
+                                                        ToolTip.Tip="移除成员"
+                                                        Command="{ReflectionBinding $parent[UserControl].DataContext.RemoveMemberCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <mi:MaterialIcon Kind="AccountRemoveOutline" IconSize="13" />
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock IsVisible="{Binding !HasMembers}" Classes="meta"
+                                           Text="暂无成员" />
+                                <TextBlock IsVisible="{Binding !IsOwner}" Classes="meta" FontSize="10.5"
+                                           Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="只有工作区 owner 可以调整成员角色；角色下拉与移除按钮仅 owner 可见。" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- task-8：本人是 restricted 成员时的明确提示（不静默隐藏文件，说明为什么看不到） -->
+                        <Border IsVisible="{Binding HasMyAclHint}"
+                                Background="{DynamicResource BondAccentFill}"
+                                BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                                CornerRadius="10" Padding="12,9">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <mi:MaterialIcon Kind="ShieldAlertOutline" IconSize="14"
+                                                 Foreground="{DynamicResource BondWarning}"
+                                                 VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding MyAclText}" FontSize="11"
+                                           TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 邀请 -->
+                        <Border Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}"
+                                BorderThickness="1" CornerRadius="10" Padding="14">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="邀请" FontSize="12.5" FontWeight="SemiBold" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="outline" Padding="12,5" FontSize="11.5"
+                                            Command="{Binding GenerateLinkCommand}"
+                                            Content="生成邀请链接" />
+                                    <Button Classes="outline" Padding="12,5" FontSize="11.5"
+                                            IsVisible="{Binding HasInviteLink}"
+                                            Click="OnCopyInviteLinkClick"
+                                            Content="复制链接" />
+                                </StackPanel>
+                                <TextBox IsVisible="{Binding HasInviteLink}" IsReadOnly="True"
+                                         Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                         Text="{Binding InviteLink}" ToolTip.Tip="复制后用浏览器打开即可加入" />
+                                <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding IsOwner}">
+                                    <TextBox Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                             Text="{Binding InviteUserId}"
+                                             PlaceholderText="邀请好友：输入用户 ID" />
+                                    <Button Grid.Column="1" Classes="outline" Margin="8,0,0,0"
+                                            Padding="12,5" FontSize="11.5"
+                                            Command="{Binding InviteFriendCommand}"
+                                            Content="发送邀请" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 错误提示 -->
+                        <TextBlock IsVisible="{Binding HasManageError}"
+                                   Text="{Binding ManageError}" FontSize="11"
+                                   Foreground="#C0392B" TextWrapping="Wrap" />
+
+                        <!-- 危险区 -->
+                        <Border Background="#10C0392B" BorderBrush="#33C0392B" BorderThickness="1"
+                                CornerRadius="10" Padding="14" IsVisible="{Binding IsOwner}">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="危险区" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="#C0392B" />
+                                <TextBlock Classes="meta" FontSize="10.5" TextWrapping="Wrap"
+                                           Text="删除工作区会清理成员、共享文件与邀请，且不可恢复。" />
+                                <Button Classes="outline" Foreground="#C0392B" Padding="12,5" FontSize="11.5"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RequestDeleteCommand}"
+                                        IsVisible="{Binding !IsDeleteConfirmOpen}"
+                                        Content="删除工作区" />
+                                <StackPanel Spacing="7" IsVisible="{Binding IsDeleteConfirmOpen}">
+                                    <TextBlock Classes="meta" FontSize="10.5" TextWrapping="Wrap"
+                                               Text="{Binding ManageDeleteHint}" />
+                                    <TextBox Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                             Text="{Binding DeleteConfirmText}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Classes="outline" Foreground="#C0392B" Padding="12,5" FontSize="11.5"
+                                                Command="{Binding ConfirmDeleteCommand}"
+                                                IsEnabled="{Binding CanConfirmDelete}"
+                                                Content="确认删除" />
+                                        <Button Classes="outline" Padding="12,5" FontSize="11.5"
+                                                Command="{Binding CancelDeleteCommand}"
+                                                Content="取消" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock IsVisible="{Binding !IsOwner}" Classes="meta" FontSize="10.5"
+                                   TextWrapping="Wrap"
+                                   Text="你在这个工作区是成员：只能查看，不能改名、邀请或删除。" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 角色变更二次确认 -->
+            <Border IsVisible="{Binding IsRoleConfirmOpen}" Background="#33000000">
+                <Border Width="366" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Background="{DynamicResource BondBg}" CornerRadius="12" Padding="18"
+                        BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                        BoxShadow="0 12 32 0 #33000000">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{Binding RoleConfirmTitle}" FontSize="13.5"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Classes="meta" FontSize="11" TextWrapping="Wrap"
+                                   Text="{Binding RoleConfirmHint}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <Button Classes="outline" Padding="12,5" FontSize="11.5"
+                                    Command="{Binding CancelRoleChangeCommand}" Content="取消" />
+                            <Button Classes="primary" Padding="12,5" FontSize="11.5"
+                                    Command="{Binding ConfirmRoleChangeCommand}" Content="确认" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Panel>
+
+        <!-- 加入工作区：粘贴邀请链接 / 邀请码 → 校验预览 → 加入（2026-10-29 用户反馈客户端没有加入入口） -->
+        <Panel Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsJoinInviteOpen}">
+            <Border Background="#33000000" />
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Width="480" CornerRadius="14" Padding="20"
+                    Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 12 32 0 #33000000">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="加入工作区" FontSize="15" FontWeight="SemiBold" />
+                        <Button Grid.Column="1" Classes="ghosticon" Padding="6" MinWidth="28" MinHeight="28"
+                                Command="{Binding CloseJoinInviteCommand}" ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <TextBlock Classes="meta" FontSize="11.5" TextWrapping="Wrap"
+                               Text="把成员发给你的邀请链接（形如 https://bond-api.sg.skkk.uno/i/…）或 43 位邀请码粘贴到下面，先校验再确认加入。" />
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="meta" Text="邀请链接 / 邀请码" />
+                        <TextBox Height="34" MinHeight="34" VerticalContentAlignment="Center"
+                                 Text="{Binding JoinInviteInput}"
+                                 PlaceholderText="粘贴邀请链接或邀请码"
+                                 AutomationProperties.Name="邀请链接输入框"
+                                 MaxLength="512" />
+                    </StackPanel>
+
+                    <Border Background="{DynamicResource BondAccentFill}"
+                            BorderBrush="{DynamicResource BondAccentBorder}" BorderThickness="1"
+                            CornerRadius="9" Padding="10,8"
+                            IsVisible="{Binding HasJoinInvitePreview}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="AccountCheckOutline" IconSize="15"
+                                             Foreground="{DynamicResource BondAccent}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding JoinInvitePreviewText}" FontSize="11.5"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Classes="meta" FontSize="11" Foreground="#C0392B" TextWrapping="Wrap"
+                               Text="{Binding JoinInviteError}"
+                               IsVisible="{Binding JoinInviteError, Converter={x:Static conv:ObjectConverters.IsNotNull}}" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Classes="outline" Content="取消" Command="{Binding CloseJoinInviteCommand}" />
+                        <Button Classes="soft" Content="验证链接"
+                                Command="{Binding VerifyJoinInviteCommand}"
+                                IsEnabled="{Binding !IsJoiningInvite}" />
+                        <Button Classes="primary" Content="加入工作区"
+                                Command="{Binding JoinInviteCommand}"
+                                IsEnabled="{Binding CanJoinInvite}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Panel>
+
+        <!-- ===== task-8：成员文件权限（ACL）——全部文件 / 仅指定目录与文件 ===== -->
+        <Panel Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsAclOpen}" ZIndex="12">
+            <Border Background="#4D000000" />
+            <Border Width="640" MaxHeight="700" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource BondSurface}" CornerRadius="14"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    BoxShadow="0 16 40 0 #33000000">
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <!-- 头部 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="20,16,20,0">
+                        <StackPanel Spacing="3">
+                            <TextBlock Classes="h2" Text="{Binding AclTitle}" />
+                            <TextBlock Classes="meta" FontSize="11"
+                                       Foreground="{DynamicResource BondTertiary}" TextWrapping="Wrap"
+                                       Text="控制该成员在本工作区能看到的目录/文件。未授权内容不会被列出，直接访问按读 404、写 403 拒绝；owner/管理员永远全权，因此不在此设置。" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="ghosticon" Command="{Binding CloseAclCommand}"
+                                ToolTip.Tip="关闭">
+                            <mi:MaterialIcon Kind="Close" IconSize="14" />
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                        <StackPanel Margin="20,0,20,14" Spacing="12">
+
+                            <!-- 访问范围 -->
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="访问范围" FontSize="12.5" FontWeight="SemiBold" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="soft sharechip" Padding="12,5"
+                                            Classes.active="{Binding IsAclModeAll}"
+                                            Command="{Binding SetAclModeAllCommand}"
+                                            AutomationProperties.Name="访问范围：全部文件">
+                                        <TextBlock Text="全部文件" FontSize="11.5" />
+                                    </Button>
+                                    <Button Classes="soft sharechip" Padding="12,5"
+                                            Classes.active="{Binding IsAclModeRestricted}"
+                                            Command="{Binding SetAclModeRestrictedCommand}"
+                                            AutomationProperties.Name="访问范围：仅指定目录与文件">
+                                        <TextBlock Text="仅指定目录与文件" FontSize="11.5" />
+                                    </Button>
+                                </StackPanel>
+                                <TextBlock Classes="meta" FontSize="10.5"
+                                           Foreground="{DynamicResource BondTertiary}" TextWrapping="Wrap"
+                                           Text="「全部文件」= 不受限（默认，与过去行为一致）；「仅指定目录与文件」= 只能读写下列授权的目录（含全部子目录）或单个文件。" />
+                            </StackPanel>
+
+                            <!-- restricted：授权项 + 目录/文件选择器 -->
+                            <StackPanel Spacing="8" IsVisible="{Binding AclRestricted}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding AclGrantCountText}" FontSize="12"
+                                               FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Classes="soft" Padding="9,3" FontSize="10.5"
+                                            Content="清空授权"
+                                            IsVisible="{Binding HasAclGrants}"
+                                            Command="{Binding ClearAclGrantsCommand}" />
+                                </Grid>
+
+                                <!-- 已授权项 -->
+                                <Border BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                        CornerRadius="9" Background="{DynamicResource BondSurfaceAlt}"
+                                        Padding="4" MinHeight="56">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="150">
+                                        <ItemsControl ItemsSource="{Binding AclGrants}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:WorkspaceAclGrant">
+                                                    <Border Background="{DynamicResource BondSurface}"
+                                                            CornerRadius="7" Margin="2" Padding="8,5">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                                                              VerticalAlignment="Center">
+                                                            <mi:MaterialIcon Grid.Column="0" Kind="FolderOutline"
+                                                                             IconSize="13"
+                                                                             Foreground="{DynamicResource BondAccent}"
+                                                                             IsVisible="{Binding IsFolder}"
+                                                                             VerticalAlignment="Center" />
+                                                            <mi:MaterialIcon Grid.Column="0"
+                                                                             Kind="FileDocumentOutline"
+                                                                             IconSize="13"
+                                                                             Foreground="{DynamicResource BondTertiary}"
+                                                                             IsVisible="{Binding IsFile}"
+                                                                             VerticalAlignment="Center" />
+                                                            <StackPanel Grid.Column="1" Margin="7,0,8,0"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding PathText}" FontSize="11.5"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           ToolTip.Tip="{Binding PathText}" />
+                                                                <TextBlock Classes="meta" FontSize="9.5"
+                                                                           Text="{Binding KindText}" />
+                                                            </StackPanel>
+                                                            <ToggleButton Grid.Column="2" Classes="bondcheck"
+                                                                          Margin="0,0,10,0"
+                                                                          VerticalAlignment="Center"
+                                                                          IsChecked="{Binding CanRead}"
+                                                                          ToolTip.Tip="可读（列出/预览/下载）">
+                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                    <Border Classes="checkbox">
+                                                                        <mi:MaterialIcon Classes="checkglyph"
+                                                                                         Kind="Check" IconSize="12"
+                                                                                         Foreground="{DynamicResource BondOnAccent}"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                    <TextBlock Text="可读" FontSize="10.5"
+                                                                               VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </ToggleButton>
+                                                            <ToggleButton Grid.Column="3" Classes="bondcheck"
+                                                                          Margin="0,0,6,0"
+                                                                          VerticalAlignment="Center"
+                                                                          IsChecked="{Binding CanWrite}"
+                                                                          ToolTip.Tip="可写（上传/改名/删除/移动；自动包含可读）">
+                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                    <Border Classes="checkbox">
+                                                                        <mi:MaterialIcon Classes="checkglyph"
+                                                                                         Kind="Check" IconSize="12"
+                                                                                         Foreground="{DynamicResource BondOnAccent}"
+                                                                                         HorizontalAlignment="Center"
+                                                                                         VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                    <TextBlock Text="可写" FontSize="10.5"
+                                                                               VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </ToggleButton>
+                                                            <Button Grid.Column="4" Classes="ghosticon"
+                                                                    Padding="2" MinWidth="24" MinHeight="24"
+                                                                    ToolTip.Tip="移除该授权"
+                                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.RemoveAclGrantCommand}"
+                                                                    CommandParameter="{Binding}">
+                                                                <mi:MaterialIcon Kind="Close" IconSize="11" />
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <TextBlock IsVisible="{Binding AclEmptyWarning}" Classes="meta"
+                                           FontSize="10.5" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource BondWarning}"
+                                           Text="当前是「仅指定」但还没有任何授权：保存后该成员在本工作区看不到任何文件，也不能上传/改名/删除。" />
+
+                                <!-- 选择器：当前目录 + 子目录/文件 + 新增授权可写 -->
+                                <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center"
+                                      Margin="0,4,0,0">
+                                    <TextBlock Classes="meta" Text="目录" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Margin="8,0" FontSize="11"
+                                               Text="{Binding AclBrowsePathText}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="soft" Padding="9,3" FontSize="10.5"
+                                            Content="上一级"
+                                            Command="{Binding AclGoUpCommand}"
+                                            IsEnabled="{Binding CanAclGoUp}" />
+                                </Grid>
+                                <TextBox Height="30" MinHeight="30" FontSize="11.5"
+                                         VerticalContentAlignment="Center"
+                                         Text="{Binding AclFilter}" MaxLength="60"
+                                         PlaceholderText="筛选当前目录（只过滤已列出的条目）" />
+                                <Border BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                                        CornerRadius="9" Height="150"
+                                        Background="{DynamicResource BondSurfaceAlt}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4">
+                                        <StackPanel>
+                                            <ItemsControl ItemsSource="{Binding AclFolders}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:NodeItem">
+                                                        <Button Classes="soft" HorizontalAlignment="Stretch"
+                                                                Padding="8,4" Margin="0,1"
+                                                                ToolTip.Tip="进入该目录（子目录也会被一起授权）"
+                                                                Command="{ReflectionBinding $parent[UserControl].DataContext.AclEnterFolderCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                                <mi:MaterialIcon Kind="FolderOutline"
+                                                                                 IconSize="13"
+                                                                                 Foreground="{DynamicResource BondAccent}" />
+                                                                <TextBlock Text="{Binding Name}" FontSize="11.5"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <ItemsControl ItemsSource="{Binding AclFiles}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:NodeItem">
+                                                        <Grid ColumnDefinitions="*,Auto" Margin="2,1">
+                                                            <StackPanel Orientation="Horizontal" Spacing="7"
+                                                                        VerticalAlignment="Center" Margin="6,0">
+                                                                <mi:MaterialIcon Kind="FileDocumentOutline"
+                                                                                 IconSize="13"
+                                                                                 Foreground="{DynamicResource BondTertiary}" />
+                                                                <TextBlock Text="{Binding Name}" FontSize="11.5"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                            <Button Grid.Column="1" Classes="soft"
+                                                                    Padding="9,2" FontSize="10" Content="授权"
+                                                                    ToolTip.Tip="只授权这一个文件"
+                                                                    Command="{ReflectionBinding $parent[UserControl].DataContext.AddAclFileCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock IsVisible="{Binding IsAclBrowseEmpty}" Classes="meta"
+                                                       FontSize="10.5" Margin="6,10"
+                                                       HorizontalAlignment="Center"
+                                                       Text="该目录下没有可授权的条目" />
+                                            <TextBlock IsVisible="{Binding HasAclBrowseError}" Classes="meta"
+                                                       FontSize="10.5" Foreground="#C0392B"
+                                                       TextWrapping="Wrap" Margin="6,8"
+                                                       Text="{Binding AclBrowseError}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Button Classes="primary" Padding="12,5" FontSize="11.5"
+                                            Content="授权当前目录（含子目录）"
+                                            Command="{Binding AddAclFolderCommand}" />
+                                    <ToggleButton Classes="bondcheck" VerticalAlignment="Center"
+                                                  IsChecked="{Binding AclNewCanWrite}"
+                                                  ToolTip.Tip="勾选后新添加的授权同时可写；不勾选则只读">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Classes="checkbox">
+                                                <mi:MaterialIcon Classes="checkglyph" Kind="Check"
+                                                                 IconSize="12"
+                                                                 Foreground="{DynamicResource BondOnAccent}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Text="新增授权可写" FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ToggleButton>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock IsVisible="{Binding HasAclError}" Classes="meta" FontSize="11"
+                                       Foreground="#C0392B" TextWrapping="Wrap"
+                                       Text="{Binding AclError}" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 底部操作 -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource BondBorder}"
+                            BorderThickness="0,1,0,0" Padding="20,12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="meta" FontSize="10.5"
+                                       Foreground="{DynamicResource BondTertiary}"
+                                       VerticalAlignment="Center" TextWrapping="Wrap"
+                                       Text="保存后立即生效（服务端整包替换：未列出的旧授权会被删除）。" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <Button Classes="soft" Content="取消" Command="{Binding CloseAclCommand}" />
+                                <Button Classes="primary" Content="保存权限"
+                                        Command="{Binding SaveAclCommand}"
+                                        IsEnabled="{Binding !AclBusy}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Panel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>Bond.Tools.MorphCheck</RootNamespace>
+    </PropertyGroup>
+
+    <!-- 直接链接主工程的纯数学源文件：不复制代码，保证校验对象与运行代码完全一致 -->
+    <ItemGroup>
+        <Compile Include="..\..\Core\Morph\SpringCurve.cs" Link="Core\SpringCurve.cs" />
+        <Compile Include="..\..\Core\Morph\MorphSpec.cs" Link="Core\MorphSpec.cs" />
+        <Compile Include="..\..\Core\Morph\MorphMath.cs" Link="Core\MorphMath.cs" />
+    </ItemGroup>
+
+</Project>

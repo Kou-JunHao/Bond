@@ -1,0 +1,238 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.NetworkSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- task-142：从 SettingsPage 拆出的「挂载与网络」分组（绑定名沿用原样） -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+        <!-- 服务器 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="10">
+                <TextBlock Classes="h2" Text="服务器" />
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="服务器地址" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="修改后需要重新登录" />
+                    </StackPanel>
+                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                        <TextBox Text="{Binding ServerUrl}" Height="34" MinHeight="34"
+                                 VerticalContentAlignment="Center" FontSize="12"
+                                 ToolTip.Tip="以 http:// 或 https:// 开头的完整地址" />
+                        <Button Grid.Column="1" Classes="soft" Margin="8,0,0,0" Padding="12,6"
+                                Command="{Binding ReconnectCommand}"
+                                ToolTip.Tip="保存地址并重建连接（需要重新登录）">
+                            <TextBlock Text="保存并重连" FontSize="12" />
+                        </Button>
+                    </Grid>
+                </Grid>
+                <TextBlock Classes="meta" Text="{Binding ServerHint}" FontSize="11" />
+            </StackPanel>
+        </suki:GlassCard>
+
+        <!-- 挂载网络硬盘（WebDAV） -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="h2" Text="挂载网络硬盘" />
+                        <TextBlock Classes="meta" Text="把个人空间或工作区映射成资源管理器里的网络驱动器（WebDAV，需 HTTPS）" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="ghosticon" Padding="8,5" MinHeight="32"
+                            Command="{Binding LoadDavSectionCommand}" ToolTip.Tip="刷新挂载信息">
+                        <mi:MaterialIcon Kind="Refresh" IconSize="13" />
+                    </Button>
+                </Grid>
+
+                <Border IsVisible="{Binding IsDavDisabled}"
+                        Background="{DynamicResource BondSurfaceAlt}" CornerRadius="8" Padding="10,8">
+                    <TextBlock Text="管理员未开启挂载功能（/dav/ 返回 404），请联系管理员。"
+                               FontSize="12" TextWrapping="Wrap" />
+                </Border>
+                <TextBlock IsVisible="{Binding HasDavError}" Text="{Binding DavError}"
+                           FontSize="11.5" Classes="meta" TextWrapping="Wrap" />
+                <TextBlock IsVisible="{Binding IsDavLoading}" Text="正在加载挂载信息…" Classes="meta" />
+
+                <TextBlock Text="挂载地址" FontSize="12.5" FontWeight="Medium" Margin="0,4,0,0" />
+                <ItemsControl ItemsSource="{Binding DavAddressRows}" IsVisible="{Binding !IsDavLoading}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="130,*,Auto" Margin="0,3">
+                                <StackPanel VerticalAlignment="Center" Spacing="0">
+                                    <TextBlock Text="{Binding Title}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding KindText}" Classes="meta" FontSize="10.5" />
+                                </StackPanel>
+                                <TextBox Grid.Column="1" Text="{Binding Url}" IsReadOnly="True"
+                                         Classes="settingsmono"
+                                         Height="30" MinHeight="30" FontSize="11.5"
+                                         VerticalContentAlignment="Center" />
+                                <Button Grid.Column="2" Classes="soft" Margin="8,0,0,0"
+                                        Padding="10,4" MinHeight="30"
+                                        Command="{Binding CopyCommand}">
+                                    <TextBlock Text="复制" FontSize="11.5" />
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Classes="rule" Margin="0,6,0,0" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="专用密码" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="挂载时用专用密码代替账号密码，可随时吊销" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="soft" Padding="12,6"
+                            Command="{Binding OpenDavCreateCommand}" Content="生成专用密码" FontSize="12" />
+                </Grid>
+
+                <Border IsVisible="{Binding IsDavCreateOpen}"
+                        Background="{DynamicResource BondSurfaceAlt}" CornerRadius="10" Padding="12,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="meta" Text="给这个密码起个名字（例如：家里的电脑）" />
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox Text="{Binding DavNewName}" Height="32" MinHeight="32" FontSize="12" />
+                            <Button Grid.Column="1" Classes="ghost" Margin="8,0,0,0" Padding="10,5"
+                                    Command="{Binding CancelDavCreateCommand}" Content="取消" />
+                            <Button Grid.Column="2" Classes="primary" Margin="8,0,0,0" Padding="12,5"
+                                    Command="{Binding CreateDavPasswordCommand}" Content="生成" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border IsVisible="{Binding HasDavPlaintext}"
+                        Background="{DynamicResource BondSurfaceAlt}" CornerRadius="10" Padding="12,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="专用密码已生成：关闭此面板后无法再次查看，请现在复制保存。"
+                                   FontSize="11.5" FontWeight="Medium" TextWrapping="Wrap" />
+                        <TextBox Text="{Binding DavNewPlaintext}" IsReadOnly="True"
+                                 Height="32" MinHeight="32" FontFamily="Consolas" FontSize="12" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="soft" Padding="10,5"
+                                    Command="{Binding CopyDavPasswordCommand}">
+                                <TextBlock Text="复制密码" FontSize="11.5" />
+                            </Button>
+                            <Button Classes="soft" Padding="10,5"
+                                    Command="{Binding CopyDavAllCommand}">
+                                <TextBlock Text="复制全部（地址+用户名+密码）" FontSize="11.5" />
+                            </Button>
+                            <Button Classes="ghost" Padding="10,5"
+                                    Command="{Binding CloseDavPlaintextCommand}" Content="关闭" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel IsVisible="{Binding HasDavPasswords}" Spacing="2">
+                    <!-- 列头：名称 / 创建时间 / 最后使用 / 操作 -->
+                    <Grid ColumnDefinitions="*,130,130,58" Margin="0,6,0,2">
+                        <TextBlock Text="名称" FontSize="10.5" Classes="meta" />
+                        <TextBlock Grid.Column="1" Text="创建时间" FontSize="10.5" Classes="meta" />
+                        <TextBlock Grid.Column="2" Text="最后使用" FontSize="10.5" Classes="meta" />
+                        <TextBlock Grid.Column="3" Text="操作" FontSize="10.5" Classes="meta"
+                                   HorizontalAlignment="Center" />
+                    </Grid>
+                    <Border Classes="rule" Margin="0,0,0,2" />
+                    <ItemsControl ItemsSource="{Binding DavPasswords}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Classes="davrow" Classes.revoked="{Binding IsRevoked}" Margin="0,2">
+                                    <Grid ColumnDefinitions="*,130,130,58" Height="26">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <Border IsVisible="{Binding IsRevoked}"
+                                                    Background="{DynamicResource BondSurfaceAlt}" CornerRadius="4"
+                                                    Padding="5,1" VerticalAlignment="Center">
+                                                <TextBlock Text="已吊销" FontSize="10" Classes="meta" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding CreatedAtText}" Classes="meta"
+                                                   FontSize="11" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding LastUsedText}" Classes="meta"
+                                                   FontSize="11" VerticalAlignment="Center" />
+                                        <Button Grid.Column="3" Classes="ghost" Padding="10,3" MinHeight="32"
+                                                HorizontalAlignment="Center"
+                                                IsEnabled="{Binding !IsRevoked}"
+                                                Command="{Binding RevokeCommand}" CommandParameter="{Binding}"
+                                                ToolTip.Tip="吊销后最长 60 秒内掉线">
+                                            <TextBlock Text="吊销" FontSize="11" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+                <TextBlock IsVisible="{Binding HasNoDavPasswords}" Classes="meta"
+                           Text="还没有专用密码；建议先生成一个再挂载（不要使用账号登录密码）。" />
+
+                <!-- 吊销二次确认：避免误点让正在挂载的盘掉线 -->
+                <Border IsVisible="{Binding IsDavRevokeConfirmOpen}"
+                        Background="{DynamicResource BondSurfaceAlt}" CornerRadius="10" Padding="12,10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding DavRevokeConfirmText}" FontSize="11.5"
+                                   TextWrapping="Wrap" FontWeight="Medium" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="ghost" Padding="10,5"
+                                    Command="{Binding CancelDavRevokeCommand}" Content="取消" />
+                            <Button Classes="primary" Padding="10,5"
+                                    Command="{Binding ConfirmDavRevokeCommand}" Content="确认吊销" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="rule" Margin="0,6,0,0" />
+                <TextBlock Text="三平台接入" FontSize="12.5" FontWeight="Medium" />
+
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Windows（资源管理器 → 映射网络驱动器）" FontSize="12" FontWeight="Medium" />
+                        <Button Grid.Column="1" Classes="ghost" Padding="10,3" MinHeight="32"
+                                Command="{Binding CopyDavWindowsCommand}">
+                            <TextBlock Text="复制命令" FontSize="11" />
+                        </Button>
+                    </Grid>
+                    <TextBox Text="{Binding DavWindowsGuideText}" IsReadOnly="True"
+                             Height="132" MinHeight="132" FontFamily="Consolas" FontSize="11"
+                             AcceptsReturn="True" TextWrapping="NoWrap"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="macOS（Finder → 连接服务器，快捷键 Cmd+K）" FontSize="12" FontWeight="Medium" />
+                        <Button Grid.Column="1" Classes="ghost" Padding="10,3" MinHeight="32"
+                                Command="{Binding CopyDavMacCommand}">
+                            <TextBlock Text="复制步骤" FontSize="11" />
+                        </Button>
+                    </Grid>
+                    <TextBox Text="{Binding DavMacGuideText}" IsReadOnly="True"
+                             Height="80" MinHeight="80" FontFamily="Consolas" FontSize="11"
+                             AcceptsReturn="True" TextWrapping="NoWrap"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Linux / rclone（大文件首选）" FontSize="12" FontWeight="Medium" />
+                        <Button Grid.Column="1" Classes="ghost" Padding="10,3" MinHeight="32"
+                                Command="{Binding CopyDavRcloneCommand}">
+                            <TextBlock Text="复制配置" FontSize="11" />
+                        </Button>
+                    </Grid>
+                    <TextBox Text="{Binding DavRcloneGuideText}" IsReadOnly="True"
+                             Height="96" MinHeight="96" FontFamily="Consolas" FontSize="11"
+                             AcceptsReturn="True" TextWrapping="NoWrap"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <TextBlock Classes="meta" TextWrapping="Wrap"
+                           Text="安全提示：不要把账号登录密码填进挂载，请使用上面的专用密码；专用密码可单独吊销，改账号密码不影响已挂载的盘。" />
+            </StackPanel>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>

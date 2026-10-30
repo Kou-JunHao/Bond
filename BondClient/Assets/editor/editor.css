@@ -1,0 +1,225 @@
+:root {
+  --bg: #ffffff;
+  --text: #1b1a17;
+  --text-muted: #7a7368;
+  --surface-alt: #f1eee8;
+  --surface-high: #e8e3d9;
+  --border: #e4e0d8;
+  --accent: #e57153;
+  --accent-soft: rgba(229, 113, 83, 0.16);
+  --code-bg: #f6f3ee;
+  --scroll-thumb: #d5cec1;
+}
+
+html[data-theme="dark"] {
+  --bg: #201e1b;
+  --text: #ede9e2;
+  --text-muted: #9a948b;
+  --surface-alt: #292623;
+  --surface-high: #332f2a;
+  --border: #3a362f;
+  --accent: #f07c5e;
+  --accent-soft: rgba(240, 124, 94, 0.2);
+  --code-bg: #272421;
+  --scroll-thumb: #4c4740;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", sans-serif;
+  font-size: 14.5px;
+}
+
+#editor {
+  height: 100%;
+}
+
+.ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+  padding: 6px 10px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.ql-container.ql-snow {
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  height: calc(100% - 45px);
+}
+
+.ql-editor {
+  padding: 18px 24px 64px 24px;
+  line-height: 1.72;
+  color: var(--text);
+  overflow-y: auto;
+}
+
+.ql-editor.ql-blank::before {
+  color: var(--text-muted);
+  font-style: normal;
+  left: 24px;
+  right: 24px;
+}
+
+.ql-editor h1 {
+  font-size: 24px;
+  line-height: 1.35;
+  margin: 18px 0 10px 0;
+  font-weight: 600;
+}
+
+.ql-editor h2 {
+  font-size: 19px;
+  line-height: 1.4;
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+}
+
+.ql-editor h3 {
+  font-size: 16px;
+  margin: 14px 0 6px 0;
+  font-weight: 600;
+}
+
+.ql-editor p {
+  margin: 0 0 8px 0;
+}
+
+.ql-editor a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ql-editor blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  margin: 10px 0;
+  padding: 6px 12px;
+  color: var(--text);
+}
+
+.ql-editor pre.ql-syntax,
+.ql-editor pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: 12.5px;
+  overflow-x: auto;
+}
+
+.ql-editor table {
+  border-collapse: collapse;
+  margin: 10px 0;
+  width: auto;
+}
+
+.ql-editor td,
+.ql-editor th {
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  min-width: 64px;
+}
+
+.ql-snow .ql-stroke {
+  stroke: var(--text-muted);
+}
+
+.ql-snow .ql-fill,
+.ql-snow .ql-stroke.ql-fill {
+  fill: var(--text-muted);
+}
+
+.ql-snow .ql-picker {
+  color: var(--text);
+}
+
+.ql-snow .ql-picker-options {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.ql-snow .ql-tooltip {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.ql-snow .ql-tooltip input[type="text"] {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.ql-snow .ql-tooltip a.ql-action,
+.ql-snow .ql-tooltip a.ql-remove {
+  color: var(--accent);
+}
+
+.ql-snow.ql-toolbar button:hover .ql-stroke,
+.ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.ql-snow.ql-toolbar .ql-picker-label:hover .ql-stroke,
+.ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-stroke {
+  stroke: var(--accent);
+}
+
+.ql-snow.ql-toolbar button:hover .ql-fill,
+.ql-snow.ql-toolbar button.ql-active .ql-fill,
+.ql-snow.ql-toolbar .ql-picker-label:hover .ql-fill {
+  fill: var(--accent);
+}
+
+.ql-snow .ql-picker-label::before,
+.ql-snow .ql-picker-item::before {
+  color: var(--text);
+}
+
+.ql-editor ::selection {
+  background: var(--accent-soft);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 6px;
+  border: 2px solid var(--bg);
+}
+
+#error {
+  padding: 28px;
+  color: var(--text);
+}
+
+#error .err-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+#error .err-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  word-break: break-all;
+}
