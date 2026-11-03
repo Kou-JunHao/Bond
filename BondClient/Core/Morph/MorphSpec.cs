@@ -61,9 +61,14 @@ public static class MorphSpec
     /// <summary>球内图标的基座中心（美术对齐：Canvas.Left/Top = 13，尺寸 28）。</summary>
     public const double IconBaseCenter = 28.0;   // 球心：Canvas.Left=12 + 32/2
 
-    /// <summary>展开面板头部图标的落点中心。</summary>
+    /// <summary>
+    /// 展开面板后图标的常驻落点中心（DIP，BallBorder 坐标系）。
+    /// <para>面板内容边距 16，面板第一行是图标专属的 24 高行（身份行整体下移到第二行）：
+    /// X = 16 + 18/2 → 左缘正好贴在内容左缘；Y = 6 + 24/2 → 图标行垂直居中。
+    /// 展开后图标**一直留在面板左上角**，不会被账号头像或面板内容盖住（见 FloatingBallWindow.axaml）。</para>
+    /// </summary>
     public const double IconTargetCenterX = 16.0 + IconTargetSize / 2.0;
-    public const double IconTargetCenterY = 28.0;
+    public const double IconTargetCenterY = 6.0 + 24.0 / 2.0;
 
     // ── 交互阈值（DIP）────────────────────────────────────────
     public const double DragThreshold = 5.0;

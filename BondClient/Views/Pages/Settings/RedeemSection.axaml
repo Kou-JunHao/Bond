@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:suki="clr-namespace:SukiUI.Controls;assembly=SukiUI"
+             xmlns:vm="using:Bond.ViewModels"
+             x:Class="Bond.Views.Pages.Settings.RedeemSection"
+             x:DataType="vm:SettingsPageViewModel">
+
+    <!-- 兑换码分区：当前档位（GET /api/entitlements/me）+ 兑换（POST /api/redeem）。
+         兑换码由管理后台批量生成并分发；这里是用户侧唯一的兑换入口，不接支付渠道。
+         失败文案全部来自后端 message 原文，界面不编造成功或失败原因。 -->
+    <StackPanel Spacing="14" HorizontalAlignment="Stretch">
+
+        <!-- 当前档位 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="1">
+                        <TextBlock Classes="h2" Text="当前档位" />
+                        <TextBlock Classes="meta" Text="兑换成功后档位、到期时间与存储额度立即生效" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="soft" MinHeight="32" Padding="12,0"
+                            VerticalAlignment="Center"
+                            Command="{Binding LoadRedeemSectionCommand}"
+                            IsEnabled="{Binding !IsPlanLoading}"
+                            ToolTip.Tip="重新读取 /api/entitlements/me"
+                            AutomationProperties.Name="刷新当前档位">
+                        <TextBlock Text="{Binding RefreshPlanButtonText}" FontSize="12" />
+                    </Button>
+                </Grid>
+
+                <Border Classes="rule" Margin="0" />
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="档位" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="账号当前生效的套餐" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding PlanNameText}" FontSize="12.5"
+                               FontWeight="Medium" VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="到期时间" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="兑换时长在原有有效期上累加" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding PlanExpiryText}" FontSize="12.5"
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*" Height="40">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="存储额度" FontSize="12.5" FontWeight="Medium" />
+                        <TextBlock Classes="meta" Text="个人空间已用 / 上限" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding PlanStorageText}" FontSize="12.5"
+                               Classes="settingsmono" VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- 读取失败（红）与宽限期提醒（橙）互斥，避免同一句话两种颜色 -->
+                <TextBlock Text="{Binding PlanStatusText}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource BondError}"
+                           IsVisible="{Binding HasPlanError}" />
+                <TextBlock Text="{Binding PlanStatusText}" FontSize="11.5" TextWrapping="Wrap"
+                           Foreground="{DynamicResource BondWarning}"
+                           IsVisible="{Binding HasPlanNotice}" />
+            </StackPanel>
+        </suki:GlassCard>
+
+        <!-- 兑换码 -->
+        <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
+            <StackPanel Spacing="12">
+                <StackPanel Spacing="1">
+                    <TextBlock Classes="h2" Text="兑换码" />
+                    <TextBlock Classes="meta" Text="管理员发放的一次性凭据，每个码只能兑换一次" />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBox x:Name="RedeemCodeBox" Text="{Binding RedeemCode}" Classes="settingsmono"
+                             Height="34" MinHeight="34" VerticalContentAlignment="Center" FontSize="12.5"
+                             MaxLength="64" PlaceholderText="粘贴或输入兑换码，例如 BOND-XXXXXXXXXXXXXXX"
+                             KeyDown="OnRedeemCodeKeyDown"
+                             ToolTip.Tip="回车即可兑换；大小写与多余空格会自动整理"
+                             AutomationProperties.Name="兑换码" />
+                    <Button Grid.Column="1" Classes="soft" MinHeight="34" Padding="14,0" Margin="8,0,0,0"
+                            Click="OnPasteCodeClick"
+                            ToolTip.Tip="从剪贴板粘贴兑换码"
+                            AutomationProperties.Name="粘贴兑换码">
+                        <TextBlock Text="粘贴" FontSize="12" />
+                    </Button>
+                    <Button Grid.Column="2" Classes="primary" MinHeight="34" Padding="16,0" Margin="8,0,0,0"
+                            Command="{Binding RedeemCommand}"
+                            IsEnabled="{Binding CanRedeem}"
+                            AutomationProperties.Name="立即兑换">
+                        <TextBlock Text="{Binding RedeemButtonText}" FontSize="12.5"
+                                   Foreground="{DynamicResource BondOnAccent}" />
+                    </Button>
+                </Grid>
+
+                <!-- 兑换结果：成功绿、失败红，文案都是后端原文或明确的网络层提示 -->
+                <Panel IsVisible="{Binding HasRedeemHint}">
+                    <TextBlock Classes="meta" Text="{Binding RedeemHint}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource BondError}"
+                               IsVisible="{Binding RedeemHintIsError}" />
+                    <TextBlock Classes="meta" Text="{Binding RedeemHint}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource BondSuccess}"
+                               IsVisible="{Binding RedeemHintIsSuccess}" />
+                </Panel>
+
+                <TextBlock Classes="hint" TextWrapping="Wrap"
+                           Text="兑换码兑换后绑定当前账号、不可转让；提示无效通常是被使用过或已过期，请向发放人确认。" />
+            </StackPanel>
+        </suki:GlassCard>
+    </StackPanel>
+</UserControl>
