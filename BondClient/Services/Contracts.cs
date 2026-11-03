@@ -625,6 +625,18 @@ public interface IInboxService
     event EventHandler? Changed;
 
     void Dismiss(InboxItem item);
+
+    /// <summary>
+    /// 重新拉取收件箱（好友申请 + 工作区邀请）。失败保留旧数据不抛异常——
+    /// 徽标宁可晚一点更新，也不能因为收件箱拉不到就把界面搞崩。
+    /// </summary>
+    Task RefreshAsync(CancellationToken ct = default);
+
+    /// <summary>同意/接受一条事项；成功返回 null，失败返回可直接展示的原因。</summary>
+    Task<string?> AcceptAsync(InboxItem item, CancellationToken ct = default);
+
+    /// <summary>忽略/拒绝一条事项；成功返回 null，失败返回可直接展示的原因。</summary>
+    Task<string?> RejectAsync(InboxItem item, CancellationToken ct = default);
 }
 
 /// <summary>缩略图：带鉴权拉取 + 内存 LRU + 并发限制 + 204 回退。</summary>

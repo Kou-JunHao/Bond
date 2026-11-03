@@ -124,7 +124,7 @@ public partial class FloatingBallViewModel : ObservableObject
             new QuickAction("上传", Material.Icons.MaterialIconKind.Upload, "到个人空间", UploadFilesCommand),
             new QuickAction("发设备", Material.Icons.MaterialIconKind.SendOutline, "在线设备", SendFilesCommand),
             new QuickAction("消息", Material.Icons.MaterialIconKind.ChatBubbleOutline, "未读会话", OpenMessagesCommand),
-            new QuickAction("收件箱", Material.Icons.MaterialIconKind.Download, "待接收任务", OpenInboxCommand)
+            new QuickAction("收件箱", Material.Icons.MaterialIconKind.Download, "待处理申请/邀请", OpenInboxCommand)
         ];
 
         AcceptTaskCommand = new AsyncRelayCommand<BallTaskItem>(AcceptTaskAsync);
@@ -182,6 +182,9 @@ public partial class FloatingBallViewModel : ObservableObject
         RefreshDeviceRows();
         await LoadQuotaAsync().ConfigureAwait(true);
         await LoadTasksAsync().ConfigureAwait(true);
+
+        // 面板展开时同步一次收件箱：别的页面/别的端已经处理掉的申请与邀请，红点要跟着消失
+        await _inbox.RefreshAsync().ConfigureAwait(true);
 
         try
         {
@@ -329,10 +332,11 @@ public partial class FloatingBallViewModel : ObservableObject
         DeviceName = _session.DeviceName;
         PresenceText = _session.PresenceText;
 
-        // 收件箱格子的副标题实时显示待接收数量（0 时回到默认文案）
+        // 收件箱格子的副标题实时显示待处理数量（0 时回到默认文案）。
+        // 口径 = 好友申请 + 工作区邀请，必须与「收件箱面板里能处理掉的条数」一致。
         if (QuickActions.Count > 3)
         {
-            QuickActions[3].Hint = PendingCount > 0 ? $"待接收 {PendingText} 项" : "待接收任务";
+            QuickActions[3].Hint = PendingCount > 0 ? $"待处理 {PendingText} 项" : "待处理申请/邀请";
             QuickActions[3].SetBadge(PendingCount);
         }
 
@@ -646,10 +650,11 @@ public partial class FloatingBallViewModel : ObservableObject
     {
         await LoadTasksAsync().ConfigureAwait(true);
 
-        // 收件箱 = 打开主界面并跳到传输页（悬浮球不重复实现整页 UI）
+        // 收件箱 = 好友申请 / 工作区邀请：打开主界面右上角的面板直接处理。
+        // 以前这里只跳传输页，面板里又没有任何收件箱内容，才出现「有红点、点进去空的、消不掉」。
         if (App.Services?.GetService(typeof(MainWindowViewModel)) is MainWindowViewModel main)
         {
-            main.RequestTransfers();
+            await main.OpenInboxPanelAsync().ConfigureAwait(true);
         }
 
         _shell.ShowMain();
