@@ -45,7 +45,7 @@ tools/          # 开发辅助工具
 ```powershell
 dotnet build BondClient/Bond.csproj -c Release
 # 自包含发布 + 安装包（需要 .NET 10 SDK 与 Inno Setup 6）
-pwsh scripts/build-installer.ps1 -Version 2.1.3
+pwsh scripts/build-installer.ps1 -Version 2.1.4
 ```
 
 客户端默认连接的服务端地址可在「设置 → 服务端地址」修改。
