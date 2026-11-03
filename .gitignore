@@ -1,4 +1,4 @@
-﻿# build outputs
+# build outputs
 **/bin/
 **/obj/
 **/target/
@@ -44,6 +44,7 @@ desktop.ini
 session-*.md
 reports/
 BondClient/docs/screenshots/
+BondServer/docs/
 
 # 本地工具目录与旧栈副本（含开发默认口令，不入库）
 .mimocode/
