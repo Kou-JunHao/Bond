@@ -1,4 +1,4 @@
-﻿package com.bond.common.entity;
+package com.bond.common.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;

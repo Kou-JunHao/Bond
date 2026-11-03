@@ -1,4 +1,4 @@
-﻿package com.bond.common.dto;
+package com.bond.common.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
