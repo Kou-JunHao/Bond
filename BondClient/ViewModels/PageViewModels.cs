@@ -3971,18 +3971,24 @@ public partial class SettingsPageViewModel : ObservableObject
     private readonly INotificationCenter _notify;
     private readonly Bond.Services.Api.BondApiClient _api;
     private readonly Bond.Services.Lan.LanDiscoveryService _lan;
+    private readonly ITransferService _transfers;
+    private readonly IUploadService _uploads;
     private readonly LocalPrefs _prefs;
 
     public SettingsPageViewModel(
         ISessionService session,
         INotificationCenter notify,
         Bond.Services.Api.BondApiClient api,
-        Bond.Services.Lan.LanDiscoveryService lan)
+        Bond.Services.Lan.LanDiscoveryService lan,
+        ITransferService transfers,
+        IUploadService uploads)
     {
         _session = session;
         _notify = notify;
         _api = api;
         _lan = lan;
+        _transfers = transfers;
+        _uploads = uploads;
         _prefs = LocalPrefs.Current;
 
         _deviceName = session.DeviceName;

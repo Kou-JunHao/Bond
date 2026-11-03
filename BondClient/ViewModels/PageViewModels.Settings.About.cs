@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -107,6 +108,13 @@ public partial class SettingsPageViewModel
     [ObservableProperty] private string _updateChecksumFull = "";
 
     [ObservableProperty] private bool _isInstallerStarted;
+
+    /// <summary>安装前检测到传输任务时的确认浮层。</summary>
+    [ObservableProperty] private bool _isInstallTransferWarningOpen;
+
+    [ObservableProperty] private int _installTransferWarningCount;
+
+    [ObservableProperty] private string _installTransferWarningText = "";
 
     /// <summary>检查频率：0 从不 / 1 每次启动 / 2 每天一次 / 3 每周一次。</summary>
     [ObservableProperty] private int _updateFrequencyIndex;
@@ -329,19 +337,50 @@ public partial class SettingsPageViewModel
 
     /// <summary>
     /// 打开已下载的安装包（交给系统执行，用户在安装向导里确认；本应用不静默安装）。
-    /// 启动后提示用户安装完再退出 Bond，不偷偷退出进程。
+    /// 安装会关闭 Bond；若还有传输任务，先让用户确认，避免静默中断。
+    /// 安装程序启动成功后 Bond 会自动退出，避免主窗口收进托盘导致安装器无法替换文件。
     /// </summary>
     [RelayCommand]
     private void OpenInstaller()
+    {
+        var active = CountActiveTransfers();
+        if (active > 0)
+        {
+            InstallTransferWarningCount = active;
+            InstallTransferWarningText =
+                $"当前有 {active} 个传输任务正在进行。安装会关闭 Bond，未完成的传输会中断。";
+            IsInstallTransferWarningOpen = true;
+            return;
+        }
+
+        StartInstaller();
+    }
+
+    [RelayCommand]
+    private void CancelInstallWithTransfers() => IsInstallTransferWarningOpen = false;
+
+    [RelayCommand]
+    private async Task ConfirmInstallWithTransfersAsync()
+    {
+        IsInstallTransferWarningOpen = false;
+        await CancelActiveTransfersAsync().ConfigureAwait(true);
+        StartInstaller();
+    }
+
+    private void StartInstaller()
     {
         var update = Updates;
         var result = update?.Install() ?? UpdateInstallResult.Failed("更新服务不可用");
         if (result.Started)
         {
             IsInstallerStarted = true;
-            DownloadStatusText = "安装程序已启动";
+            DownloadStatusText = "安装程序已启动，Bond 即将退出";
             UpdateStatusText = "安装程序已启动";
-            UpdateDetailText = "按安装向导完成后，点「退出 Bond」再重新打开即可使用新版本。";
+            UpdateDetailText = "Bond 将退出以便安装程序替换文件；安装完成后重新打开即可使用新版本。";
+
+            // 安装器会关闭 Bond；主窗口的关闭事件默认只收进托盘，这里主动退出，
+            // 避免安装程序被“文件正在使用”卡住。延迟一点让安装器先完成启动。
+            DispatcherTimer.RunOnce(ExitForInstall, TimeSpan.FromMilliseconds(1200));
             return;
         }
 
@@ -366,6 +405,40 @@ public partial class SettingsPageViewModel
         UpdateState = UpdateState.Error;
         UpdateStatusText = "安装包不可用";
         UpdateDetailText = result.Message;
+    }
+
+    private int CountActiveTransfers()
+    {
+        var count = _transfers.Items.Count(t => t.IsActive)
+            + _transfers.Sessions.Count(s => s.IsActive)
+            + _uploads.Uploads.Count(u => u.IsActive);
+        return count;
+    }
+
+    private async Task CancelActiveTransfersAsync()
+    {
+        var jobs = _transfers.Items.Where(t => t.IsActive).ToList();
+        if (jobs.Count > 0)
+        {
+            try
+            {
+                await Task.WhenAll(jobs.Select(t => _transfers.CancelAsync(t))).ConfigureAwait(true);
+            }
+            catch
+            {
+                // 取消失败不阻塞安装；安装程序仍会关闭 Bond。
+            }
+        }
+
+        foreach (var session in _transfers.Sessions.Where(s => s.IsActive).ToList())
+        {
+            _transfers.CancelSession(session);
+        }
+
+        foreach (var upload in _uploads.Uploads.Where(u => u.IsActive).ToList())
+        {
+            _uploads.Cancel(upload);
+        }
     }
 
     [RelayCommand]

@@ -107,36 +107,6 @@ public partial class App : Application
 
         CreateTrayIcon(desktop);
 
-        // 临时自检：BOND_SELFTEST=1 时用 App 自己的 HttpClient 打一次登录，日志落盘
-        if (Environment.GetEnvironmentVariable("BOND_SELFTEST") == "1")
-        {
-            _ = Task.Run(async () =>
-            {
-                var log = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "bond-api-selftest.log");
-                var api = Services.GetRequiredService<Bond.Services.Api.BondApiClient>();
-                var lines = new System.Collections.Generic.List<string>
-                {
-                    "base=" + api.BaseUrl,
-                    "proxy=" + (System.Net.Http.HttpClient.DefaultProxy?.GetProxy(new Uri(api.BaseUrl))?.ToString() ?? "none")
-                };
-
-                try
-                {
-                    var r = await api.PostAsync<Bond.Services.Api.UserDto>("/api/auth/login",
-                        new { username = "__probe_not_exist__", password = "__wrong__" });
-                    lines.Add(r is null
-                        ? "RESULT=null  LastError=" + (api.LastError ?? "(空)")
-                        : $"RESULT code={r.Code} message={r.Message}");
-                }
-                catch (Exception ex)
-                {
-                    lines.Add("THROW " + ex.GetType().Name + ": " + ex.Message);
-                }
-
-                try { System.IO.File.WriteAllLines(log, lines); } catch { }
-            });
-        }
-
         var api = Services.GetRequiredService<Bond.Services.Api.BondApiClient>();
 
         // 登录态失效（token 过期 / 刷新失败）→ 收回主界面，回到登录页

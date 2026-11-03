@@ -7,6 +7,7 @@
              x:DataType="vm:SettingsPageViewModel">
 
     <!-- task-142：从 SettingsPage 拆出的「关于与更新」分组（绑定名沿用原样） -->
+    <Grid>
     <StackPanel Spacing="14" HorizontalAlignment="Stretch">
         <!-- 关于与更新（task-86） -->
         <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="18">
@@ -213,4 +214,35 @@
             </StackPanel>
         </Button>
     </StackPanel>
+
+        <!-- 安装前传输任务确认：安装会关闭 Bond，避免静默中断传输 -->
+        <Border IsVisible="{Binding IsInstallTransferWarningOpen}"
+                Background="#99000000" ZIndex="10">
+            <Border Background="{DynamicResource BondSurface}"
+                    BorderBrush="{DynamicResource BondBorder}" BorderThickness="1"
+                    CornerRadius="12" Padding="20" MaxWidth="420"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="h2" Text="还有传输任务未完成" />
+                    <TextBlock Text="{Binding InstallTransferWarningText}" TextWrapping="Wrap"
+                               FontSize="12.5" LineHeight="20"
+                               Foreground="{DynamicResource BondSecondary}" />
+                    <TextBlock Text="建议等待传输完成后再安装；如果现在安装，未完成的传输会被取消。"
+                               TextWrapping="Wrap" FontSize="11.5" LineHeight="18"
+                               Foreground="{DynamicResource BondTertiary}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Classes="soft" Padding="14,6"
+                                Command="{Binding CancelInstallWithTransfersCommand}">
+                            <TextBlock Text="等待传输完成" FontSize="12" />
+                        </Button>
+                        <Button Classes="primary" Padding="14,6"
+                                Command="{Binding ConfirmInstallWithTransfersCommand}">
+                            <TextBlock Text="仍要安装" FontSize="12"
+                                       Foreground="{DynamicResource BondOnAccent}" />
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 </UserControl>
