@@ -327,12 +327,16 @@ public sealed class ChatImageBubble : UserControl
 }
 
 /// <summary>
-/// 聊天页交互（task-3）：文件消息卡点击 = 下载到下载目录。
-/// <para>放在 ChatPage.axaml.cs 而不是 Pages.axaml.cs，是因为本任务的改动范围只含本文件；
+/// 聊天页交互（task-3）：文件消息卡单击 = 下载到下载目录，双击 = 打开预览。
+/// <para>单击延迟到双击判定窗口之后再下载，避免双击时先下载一次；
 /// 图片消息的点击仍由气泡内 Button 的 OpenAttachmentCommand 走预览。</para>
 /// </summary>
 public partial class ChatPage
 {
+    private static readonly TimeSpan DownloadClickDelay = TimeSpan.FromMilliseconds(320);
+    private DispatcherTimer? _downloadClickTimer;
+    private ChatMessage? _pendingDownloadMessage;
+
     private void OnDownloadAttachmentPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Control { DataContext: ChatMessage message }) return;
@@ -342,11 +346,43 @@ public partial class ChatPage
         if (!point.Properties.IsLeftButtonPressed) return;
         if (!message.CanDownload) return;
 
+        // 第二次按下（ClickCount == 2）取消待执行的单击下载，改为预览。
+        if (e.ClickCount >= 2)
+        {
+            CancelPendingDownload();
+            if (vm.OpenAttachmentCommand.CanExecute(message))
+            {
+                vm.OpenAttachmentCommand.Execute(message);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        _pendingDownloadMessage = message;
+        _downloadClickTimer ??= new DispatcherTimer { Interval = DownloadClickDelay };
+        _downloadClickTimer.Stop();
+        _downloadClickTimer.Tick -= OnDownloadClickTimerTick;
+        _downloadClickTimer.Tick += OnDownloadClickTimerTick;
+        _downloadClickTimer.Start();
+        e.Handled = true;
+    }
+
+    private void OnDownloadClickTimerTick(object? sender, EventArgs e)
+    {
+        _downloadClickTimer?.Stop();
+        var message = _pendingDownloadMessage;
+        _pendingDownloadMessage = null;
+        if (message is null || DataContext is not ChatPageViewModel vm) return;
         if (vm.DownloadAttachmentCommand.CanExecute(message))
         {
             vm.DownloadAttachmentCommand.Execute(message);
         }
+    }
 
-        e.Handled = true;
+    private void CancelPendingDownload()
+    {
+        _downloadClickTimer?.Stop();
+        _pendingDownloadMessage = null;
     }
 }

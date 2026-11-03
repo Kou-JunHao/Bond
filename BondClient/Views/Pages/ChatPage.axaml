@@ -628,7 +628,7 @@
                                                                         IsHitTestVisible="{Binding CanDownload}"
                                                                         PointerPressed="OnDownloadAttachmentPressed"
                                                                         Cursor="Hand" MinWidth="188"
-                                                                        ToolTip.Tip="点击下载到下载目录">
+                                                                        ToolTip.Tip="单击下载到下载目录，双击预览">
                                                                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="11">
                                                                         <Border Classes="fileicon">
                                                                             <Panel>
