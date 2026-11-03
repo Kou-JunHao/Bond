@@ -95,8 +95,10 @@
                     PointerReleased="OnPointerReleased"
                     PointerEntered="OnPointerEntered"
                     PointerExited="OnPointerExited">
+                <!-- Clip 比 Border 边界外扩 1px：否则展开到面板圆角时，
+                     1px 描边会正好落在裁剪边界上，四角被裁掉。 -->
                 <Border.Clip>
-                    <RectangleGeometry Rect="0,0,56,56" RadiusX="28" RadiusY="28" />
+                    <RectangleGeometry Rect="-1,-1,58,58" RadiusX="29" RadiusY="29" />
                 </Border.Clip>
                 <Border.ContextMenu>
                     <ContextMenu>

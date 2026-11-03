@@ -8,7 +8,7 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <RootNamespace>Bond</RootNamespace>
         <AssemblyName>Bond</AssemblyName>
-        <Version>2.1.4</Version>
+        <Version>2.1.5</Version>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <!-- task-148锛歟xe 璧勬簮鍥炬爣浣跨敤鐢?logo.svg 娓叉煋鐨勭櫧搴曞灏哄 Icon.ico锛堝畨瑁呰剼鏈殑 SetupIconFile / 蹇嵎鏂瑰紡涔熸寚鍚戝悓涓€鏂囦欢锛?-->

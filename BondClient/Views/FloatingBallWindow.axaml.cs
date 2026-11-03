@@ -70,6 +70,10 @@ public partial class FloatingBallWindow : Window, IBallHost
     private double _lastW = double.NaN, _lastH, _lastCR;
     private double _lastItx = double.NaN, _lastIty, _lastIts;
 
+    // 形变期间临时关掉阴影：透明置顶窗口每帧改尺寸时，BoxShadow 的重绘成本很高，
+    // 是掉帧的主要来源之一。动画结束再恢复。
+    private BoxShadows _ballShadow;
+
     // resize（面板尺寸自适应）
     private uint _resizeGen;
     private double _resizeT;
@@ -106,6 +110,7 @@ public partial class FloatingBallWindow : Window, IBallHost
     public FloatingBallWindow()
     {
         InitializeComponent();
+        _ballShadow = BallBorder.BoxShadow;
         _vm = null!;
         _notify = new NotificationCenter();
         _shell = new WindowCoordinator();
@@ -114,6 +119,7 @@ public partial class FloatingBallWindow : Window, IBallHost
     public FloatingBallWindow(FloatingBallViewModel vm)
     {
         InitializeComponent();
+        _ballShadow = BallBorder.BoxShadow;
         _vm = vm;
         DataContext = vm;
 
@@ -271,7 +277,10 @@ public partial class FloatingBallWindow : Window, IBallHost
         DeviceNameDisplay.Text = _vm.DeviceName;
         DeviceNameDisplay.Opacity = 0;
 
-        PanelContent.IsVisible = true;
+        // 先不显示面板内容：morph 前 35% 内容完全透明，若此时仍参与布局，
+        // 每帧随 BallBorder 尺寸变化重排整棵面板树，是掉帧的主要来源。
+        // 等内容真正开始淡入（MorphTick 中 opacity > 0.01）再显示。
+        PanelContent.IsVisible = false;
         PanelContent.Opacity = 0;
         MorphIcon.IsVisible = true;
         _contentFadeIn = true;
@@ -376,6 +385,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         _lastW = double.NaN;
         _lastItx = double.NaN;
         _morphInProgress = true;
+        BallBorder.BoxShadow = default;
         RequestAnimationFrame(MorphTick);
     }
 
@@ -455,18 +465,13 @@ public partial class FloatingBallWindow : Window, IBallHost
             BallBorder.Width = _tW;
             BallBorder.Height = _tH;
             BallBorder.CornerRadius = new CornerRadius(_tCR);
-            if (BallBorder.Clip is RectangleGeometry clipFinal)
-            {
-                clipFinal.Rect = new Rect(0, 0, _tW, _tH);
-                clipFinal.RadiusX = _tCR;
-                clipFinal.RadiusY = _tCR;
-            }
+            UpdateBallClip(_tW, _tH, _tCR);
 
             if (!_dragging)
             {
                 var ww = DipToPx(_tW + _ballPad * 2);
                 var wh = DipToPx(_tH + _ballPad * 2);
-                Position = new PixelPoint(_tcx - ww / 2, _tcy - wh / 2);
+                SetWindowPosition(_tcx - ww / 2, _tcy - wh / 2);
             }
 
             if (_mGen == gen) EndMorph();
@@ -500,7 +505,7 @@ public partial class FloatingBallWindow : Window, IBallHost
             {
                 var ww = DipToPx(w + _ballPad * 2);
                 var wh = DipToPx(h + _ballPad * 2);
-                Position = new PixelPoint(curCx - ww / 2, curCy - wh / 2);
+                SetWindowPosition(curCx - ww / 2, curCy - wh / 2);
             }
         }
         else
@@ -511,7 +516,9 @@ public partial class FloatingBallWindow : Window, IBallHost
             w = SpringCurve.Lerp(_fW, _tW, bt);
             h = SpringCurve.Lerp(_fH, _tH, bt);
 
-            var posT = SpringCurve.EaseOutCubic(SpringCurve.Clamp01(raw * MorphSpec.PositionLeadFactor));
+            // Apple 风格：位置比尺寸更早到位，用四次减速（起步快、尾巴长），
+            // 而不是 EaseOutCubic 那种偏"机械"的收尾。
+            var posT = SpringCurve.AppleDecelerate(SpringCurve.Clamp01(raw * MorphSpec.PositionLeadFactor));
             var curCx = (int)SpringCurve.Lerp(_scx, _tcx, posT);
             var curCy = (int)SpringCurve.Lerp(_scy, _tcy, posT);
 
@@ -521,7 +528,7 @@ public partial class FloatingBallWindow : Window, IBallHost
             {
                 var ww = DipToPx(w + _ballPad * 2);
                 var wh = DipToPx(h + _ballPad * 2);
-                Position = new PixelPoint(curCx - ww / 2, curCy - wh / 2);
+                SetWindowPosition(curCx - ww / 2, curCy - wh / 2);
             }
         }
 
@@ -534,19 +541,15 @@ public partial class FloatingBallWindow : Window, IBallHost
             BallBorder.Height = h;
             _lastW = w;
             _lastH = h;
-            if (BallBorder.Clip is RectangleGeometry clip) clip.Rect = new Rect(0, 0, w, h);
         }
 
         if (crChanged)
         {
             BallBorder.CornerRadius = new CornerRadius(cr);
-            if (BallBorder.Clip is RectangleGeometry clip)
-            {
-                clip.RadiusX = cr;
-                clip.RadiusY = cr;
-            }
             _lastCR = cr;
         }
+
+        if (sizeChanged || crChanged) UpdateBallClip(w, h, cr);
 
         var it = SpringCurve.Clamp01(SpringCurve.Normalized(
             raw, MorphSpec.Icon.Zeta, MorphSpec.Icon.Omega, MorphSpec.Icon.EndValue));
@@ -557,6 +560,12 @@ public partial class FloatingBallWindow : Window, IBallHost
             SpringCurve.Lerp(_iFs, _iTs, it));
 
         var contentOpacity = MorphMath.ContentOpacity(_contentFadeIn, raw, out var slideX);
+        if (contentOpacity > 0.01 && !PanelContent.IsVisible)
+        {
+            // 内容开始出现时才让它参与布局，避免前 35% 每帧重排整棵面板树。
+            PanelContent.IsVisible = true;
+        }
+
         PanelContent.Opacity = contentOpacity;
         if (PanelContent.RenderTransform is TranslateTransform ct) ct.X = slideX;
         else PanelContent.RenderTransform = new TranslateTransform(slideX, 0);
@@ -564,7 +573,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         DeviceNameDisplay.Opacity = _contentFadeIn
             ? 0
             : raw < MorphSpec.ContentFadeOutEnd
-                ? 1 - SpringCurve.EaseOutCubic(raw / MorphSpec.ContentFadeOutEnd)
+                ? 1 - SpringCurve.AppleDecelerate(raw / MorphSpec.ContentFadeOutEnd)
                 : 0;
 
         if (_mGen == gen) RequestAnimationFrame(MorphTick);
@@ -573,6 +582,7 @@ public partial class FloatingBallWindow : Window, IBallHost
     private void EndMorph()
     {
         _morphInProgress = false;
+        BallBorder.BoxShadow = _ballShadow;
 
         if (PanelContent.RenderTransform is TranslateTransform ct) ct.X = 0;
 
@@ -602,6 +612,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         else
         {
             _expanded = true;
+            PanelContent.IsVisible = true;
             PanelContent.Opacity = 1;
             DeviceNameDisplay.Opacity = 1;
 
@@ -648,6 +659,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         _resizeT = 0;
         _resizeTick = 0;
         _resizeGen++;
+        BallBorder.BoxShadow = default;
         RequestAnimationFrame(ResizeTick);
     }
 
@@ -661,30 +673,54 @@ public partial class FloatingBallWindow : Window, IBallHost
         }
 
         var raw = Math.Min(_resizeT, 1);
-        var t = SpringCurve.EaseOutCubic(raw);
+        var t = SpringCurve.AppleDecelerate(raw);
         var w = SpringCurve.Lerp(_resizeFromW, _resizeToW, t);
         var h = SpringCurve.Lerp(_resizeFromH, _resizeToH, t);
 
         BallBorder.Width = w;
         BallBorder.Height = h;
         BallBorder.CornerRadius = new CornerRadius(MorphSpec.PanelCornerRadius);
-        if (BallBorder.Clip is RectangleGeometry clip)
-        {
-            clip.Rect = new Rect(0, 0, w, h);
-            clip.RadiusX = MorphSpec.PanelCornerRadius;
-            clip.RadiusY = MorphSpec.PanelCornerRadius;
-        }
+        UpdateBallClip(w, h, MorphSpec.PanelCornerRadius);
 
         var ww = DipToPx(w + _ballPad * 2);
         var wh = DipToPx(h + _ballPad * 2);
-        Position = new PixelPoint(_resizeCx - ww / 2, _resizeCy - wh / 2);
+        SetWindowPosition(_resizeCx - ww / 2, _resizeCy - wh / 2);
 
-        if (raw < 1 && _resizeGen == gen) RequestAnimationFrame(ResizeTick);
+        if (raw < 1 && _resizeGen == gen)
+        {
+            RequestAnimationFrame(ResizeTick);
+        }
+        else if (_resizeGen == gen)
+        {
+            BallBorder.BoxShadow = _ballShadow;
+        }
     }
 
     // ---------------------------------------------------------------
     //  图标 morph
     // ---------------------------------------------------------------
+
+    /// <summary>
+    /// 更新球体/面板的圆角裁剪。
+    /// <para>Clip 比 Border 边界外扩 1px：Border 的 1px 描边正好画在边界上，
+    /// 若 Clip 与边界完全重合，展开到面板圆角时四角描边会被裁掉。</para>
+    /// </summary>
+    private void UpdateBallClip(double w, double h, double cr)
+    {
+        if (BallBorder.Clip is RectangleGeometry clip)
+        {
+            clip.Rect = new Rect(-1, -1, w + 2, h + 2);
+            clip.RadiusX = cr + 1;
+            clip.RadiusY = cr + 1;
+        }
+    }
+
+    /// <summary>只在整数像素位置变化时移动窗口，避免每帧触发无意义的窗口 move。</summary>
+    private void SetWindowPosition(int x, int y)
+    {
+        if (Position.X != x || Position.Y != y)
+            Position = new PixelPoint(x, y);
+    }
 
     private void SetMorphIcon(double tx, double ty, double scale)
     {
@@ -729,6 +765,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         _pillT = 0;
         _pillTick = 0;
         _pillSquash = true;
+        BallBorder.BoxShadow = default;
         RequestAnimationFrame(PillTick);
     }
 
@@ -747,6 +784,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         _pillT = 0;
         _pillTick = 0;
         _pillSquash = false;
+        BallBorder.BoxShadow = default;
         RequestAnimationFrame(PillTick);
     }
 
@@ -771,6 +809,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         _pillSquash = true;
         _isPill = true;
         _snapDir = newDir;
+        BallBorder.BoxShadow = default;
         RequestAnimationFrame(PillTick);
     }
 
@@ -800,12 +839,7 @@ public partial class FloatingBallWindow : Window, IBallHost
         BallBorder.Width = w;
         BallBorder.Height = h;
         BallBorder.CornerRadius = new CornerRadius(cr);
-        if (BallBorder.Clip is RectangleGeometry clip)
-        {
-            clip.Rect = new Rect(0, 0, w, h);
-            clip.RadiusX = cr;
-            clip.RadiusY = cr;
-        }
+        UpdateBallClip(w, h, cr);
 
         var iconScale = Math.Min(w, h) / _ballSize;
         if (_mScale is not null)
@@ -814,9 +848,18 @@ public partial class FloatingBallWindow : Window, IBallHost
             _mScale.ScaleY = iconScale;
         }
 
-        if (_pillT >= 1 && _snapDir != SnapDir.None) SnapFlush();
-
-        if (_pillT < 1 && _pillGen == gen) RequestAnimationFrame(PillTick);
+        if (_pillT >= 1)
+        {
+            if (_pillGen == gen)
+            {
+                BallBorder.BoxShadow = _ballShadow;
+                if (_snapDir != SnapDir.None) SnapFlush();
+            }
+        }
+        else if (_pillGen == gen)
+        {
+            RequestAnimationFrame(PillTick);
+        }
     }
 
     private void SnapFlush()
@@ -893,9 +936,9 @@ public partial class FloatingBallWindow : Window, IBallHost
             if (_slideGen != gen) return;
 
             var t = Math.Min(sw.ElapsedMilliseconds / (double)MorphSpec.SnapSlideDurationMs, 1.0);
-            var eased = SpringCurve.EaseOutCubic(t);
+            var eased = SpringCurve.AppleDecelerate(t);
 
-            Position = new PixelPoint(
+            SetWindowPosition(
                 (int)(startX + (targetX - startX) * eased),
                 (int)(startY + (targetY - startY) * eased));
 

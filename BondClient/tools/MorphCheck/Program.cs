@@ -170,7 +170,7 @@ internal static class Program
             prevCr = cr;
         }
 
-        // 65% 时长、200 次采样：单步宽高跳变不应超过总跨度的 6%
+        // 当前 morph 时长、200 次采样：单步宽高跳变不应超过总跨度的 6%
         AssertTrue($"宽度单步跳变 {maxJumpW:0.000} 合理（< 20px）", maxJumpW < 20.0);
         AssertTrue($"圆角单步跳变 {maxJumpCr:0.000} 合理（< 4px）", maxJumpCr < 4.0);
 
