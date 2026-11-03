@@ -113,6 +113,9 @@ public partial class SettingsPageViewModel
 
     [ObservableProperty] private bool _updateAutoDownload;
 
+    /// <summary>下载完成后自动启动安装程序（仍显示安装向导，由用户确认）。</summary>
+    [ObservableProperty] private bool _updateAutoOpenInstaller = true;
+
     /// <summary>更新通道：0 稳定版 / 1 测试通道。</summary>
     [ObservableProperty] private int _updateChannelIndex;
 
@@ -278,6 +281,13 @@ public partial class SettingsPageViewModel
             UpdateState = UpdateState.Downloaded;
             UpdateStatusText = $"已下载 {release.Version}";
             UpdateDetailText = $"文件：{Path.GetFileName(result.Path ?? "")}";
+
+            // 用户要求：下载完成后直接打开安装包。仍走系统安装向导，不静默安装。
+            if (UpdateAutoOpenInstaller)
+            {
+                OpenInstaller();
+            }
+
             return;
         }
 
@@ -335,8 +345,26 @@ public partial class SettingsPageViewModel
             return;
         }
 
+        // 启动失败不等于安装包丢失：文件还在时保留「已下载」状态，允许重试。
+        if (!string.IsNullOrWhiteSpace(DownloadedPath) && File.Exists(DownloadedPath))
+        {
+            UpdateState = UpdateState.Downloaded;
+            UpdateStatusText = "安装包已下载，但安装程序未能启动";
+            UpdateDetailText = result.Message;
+            DownloadStatusText = result.Message;
+            return;
+        }
+
+        if (result.Message.Contains("校验失败", StringComparison.Ordinal))
+        {
+            UpdateState = UpdateState.VerifyFailed;
+            UpdateStatusText = "安装包校验失败";
+            UpdateDetailText = result.Message;
+            return;
+        }
+
         UpdateState = UpdateState.Error;
-        UpdateStatusText = "安装包不存在";
+        UpdateStatusText = "安装包不可用";
         UpdateDetailText = result.Message;
     }
 
@@ -436,6 +464,12 @@ public partial class SettingsPageViewModel
         Policy?.SetAutoDownload(value);
     }
 
+    partial void OnUpdateAutoOpenInstallerChanged(bool value)
+    {
+        if (_syncingUpdatePreferences) return;
+        Policy?.SetAutoOpenInstaller(value);
+    }
+
     partial void OnUpdateChannelIndexChanged(int value)
     {
         if (_syncingUpdatePreferences) return;
@@ -453,6 +487,7 @@ public partial class SettingsPageViewModel
         {
             UpdateFrequencyIndex = IndexOf(FrequencyValues, policy.Frequency);
             UpdateAutoDownload = policy.AutoDownload;
+            UpdateAutoOpenInstaller = policy.AutoOpenInstaller;
             UpdateChannelIndex = policy.Channel == UpdateChannel.Beta ? 1 : 0;
         }
         finally

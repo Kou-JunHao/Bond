@@ -1,6 +1,8 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Bond.Models;
@@ -31,7 +33,7 @@ public interface IUpdateService
     /// <summary>下载「最近一次检查结果」里的安装包，内部做 SHA-256 校验。</summary>
     Task<SoftwareDownloadResult> DownloadAsync(IProgress<double>? progress, CancellationToken ct = default);
 
-    /// <summary>启动已下载的安装包（不静默安装，仍由用户在安装向导里确认）。</summary>
+    /// <summary>启动已下载的安装包；silent=true 时使用 Inno Setup 静默参数（自动更新入口）。</summary>
     UpdateInstallResult Install(bool silent = false);
 }
 
@@ -106,23 +108,71 @@ public sealed class UpdateService(ISoftwareService software) : IUpdateService
             return UpdateInstallResult.Failed("安装包不存在，可能已被移动或删除，请重新下载。");
         }
 
+        var file = new FileInfo(path);
+        if (file.Length <= 0)
+        {
+            return UpdateInstallResult.Failed("安装包为空，请重新下载。");
+        }
+
+        if (!string.Equals(file.Extension, ".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return UpdateInstallResult.Failed("安装包格式不受支持，请重新下载。");
+        }
+
+        // 启动前再校验一次：防止下载完成后文件被替换/损坏。
+        var expected = (PendingRelease?.Sha256 ?? "").Trim().ToLowerInvariant();
+        if (expected.Length != 64)
+        {
+            return UpdateInstallResult.Failed("安装包缺少 SHA-256 校验值，无法确认完整性，请重新检查更新。");
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+            if (!string.Equals(actual, expected, StringComparison.Ordinal))
+            {
+                TryDelete(path);
+                DownloadedPath = null;
+                return UpdateInstallResult.Failed("安装包校验失败（SHA-256 不匹配），已删除文件，请重新下载。");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            return UpdateInstallResult.Failed($"无法校验安装包：{ex.Message}");
+        }
+
         try
         {
             var startInfo = new ProcessStartInfo(path) { UseShellExecute = true };
             if (silent)
             {
-                // 静默安装参数因打包器而异（NSIS 用 /S、MSI 用 /quiet）。
-                // task-141 只预留自动更新入口，默认仍走交互式安装向导；
-                // 等确定安装包格式后再在这里补参数。
-                startInfo.Arguments = "";
+                // Inno Setup 的静默参数：显示进度但不弹向导，不自动重启。
+                startInfo.Arguments = "/SILENT /SUPPRESSMSGBOXES /NORESTART";
             }
 
             Process.Start(startInfo);
             return UpdateInstallResult.Ok(path);
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return UpdateInstallResult.Failed("已取消安装程序启动（UAC 提示被取消）。");
+        }
+        catch (Exception ex)
         {
             return UpdateInstallResult.Failed($"无法启动安装程序：{ex.Message}");
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch
+        {
+            // 删除失败不影响错误提示。
         }
     }
 

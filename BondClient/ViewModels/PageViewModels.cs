@@ -4437,6 +4437,9 @@ public sealed class LocalPrefs
     /// <summary>task-141：查到新版本后是否自动下载安装包。默认关闭。</summary>
     public bool UpdateAutoDownload { get; set; }
 
+    /// <summary>下载完成后是否自动启动安装程序。默认开启；安装向导仍由用户确认。</summary>
+    public bool UpdateAutoOpenInstaller { get; set; } = true;
+
     /// <summary>task-141：更新通道。当前只实现 stable，beta 仅预留。</summary>
     public string UpdateChannel { get; set; } = "stable";
 

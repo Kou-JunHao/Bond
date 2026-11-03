@@ -15,6 +15,9 @@ public interface IUpdatePolicy
 
     bool AutoDownload { get; }
 
+    /// <summary>下载完成后是否自动启动安装程序（仍显示安装向导，由用户确认）。</summary>
+    bool AutoOpenInstaller { get; }
+
     UpdateChannel Channel { get; }
 
     /// <summary>用户选择「忽略此版本」的版本号；为空表示没有忽略。</summary>
@@ -33,6 +36,8 @@ public interface IUpdatePolicy
 
     void SetAutoDownload(bool value);
 
+    void SetAutoOpenInstaller(bool value);
+
     void SetChannel(UpdateChannel channel);
 
     void IgnoreVersion(string? version);
@@ -44,6 +49,8 @@ public sealed class UpdatePolicy : IUpdatePolicy
     public UpdateFrequency Frequency => ParseFrequency(LocalPrefs.Current.UpdateFrequency);
 
     public bool AutoDownload => LocalPrefs.Current.UpdateAutoDownload;
+
+    public bool AutoOpenInstaller => LocalPrefs.Current.UpdateAutoOpenInstaller;
 
     public UpdateChannel Channel => ParseChannel(LocalPrefs.Current.UpdateChannel);
 
@@ -96,6 +103,13 @@ public sealed class UpdatePolicy : IUpdatePolicy
     {
         var prefs = LocalPrefs.Current;
         prefs.UpdateAutoDownload = value;
+        prefs.Save();
+    }
+
+    public void SetAutoOpenInstaller(bool value)
+    {
+        var prefs = LocalPrefs.Current;
+        prefs.UpdateAutoOpenInstaller = value;
         prefs.Save();
     }
 

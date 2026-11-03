@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading;
@@ -149,46 +151,172 @@ public sealed class SoftwareService(BondApiClient api) : ISoftwareService
             return SoftwareDownloadResult.Failed("发行物信息不完整，请重新检查更新。");
         }
 
+        var expected = NormalizeSha256(release.Sha256);
+        if (expected.Length != 64)
+        {
+            return SoftwareDownloadResult.Failed("服务端未提供有效的 SHA-256 校验值，已取消下载。请稍后重新检查更新。");
+        }
+
         var directory = UpdatesDirectory;
-        Directory.CreateDirectory(directory);
+        try
+        {
+            Directory.CreateDirectory(directory);
+        }
+        catch (Exception ex)
+        {
+            return SoftwareDownloadResult.Failed($"无法创建下载目录：{ex.Message}");
+        }
 
         var fileName = SanitizeFileName(release.FileName);
         var target = Path.Combine(directory, fileName);
         var part = target + ".part";
 
-        try
+        if (!HasEnoughDiskSpace(directory, release.FileSize, out var spaceError))
         {
-            using var response = await api.GetStreamAsync($"/api/software/releases/{release.Id}/download");
-            if (response is null)
+            return SoftwareDownloadResult.Failed(spaceError);
+        }
+
+        // 已经下载过且校验通过：直接复用，避免重复下载 80MB。
+        if (File.Exists(target))
+        {
+            try
             {
-                return SoftwareDownloadResult.Failed("下载失败：无法连接服务器。");
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return SoftwareDownloadResult.Failed($"下载失败（HTTP {(int)response.StatusCode}）。");
-            }
-
-            var total = response.Content.Headers.ContentLength is { } len && len > 0 ? len : release.FileSize;
-            if (total <= 0) total = 1;
-
-            long received = 0;
-            var lastReport = 0.0;
-            string actual;
-
-            using (var source = await response.Content.ReadAsStreamAsync(ct))
-            using (var destination = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None,
-                       64 * 1024, useAsync: true))
-            using (var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
-            {
-                var buffer = new byte[64 * 1024];
-                int read;
-                while ((read = await source.ReadAsync(buffer, ct)) > 0)
+                var existing = await ComputeSha256Async(target, ct).ConfigureAwait(false);
+                if (string.Equals(existing, expected, StringComparison.Ordinal))
                 {
-                    await destination.WriteAsync(buffer.AsMemory(0, read), ct);
-                    sha.AppendData(buffer, 0, read);
-                    received += read;
+                    progress?.Report(100);
+                    CleanupOldInstallers(directory, target);
+                    return SoftwareDownloadResult.Ok(target, release.Version, existing,
+                        "安装包已存在且 SHA-256 校验通过，无需重复下载");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // 旧文件读不了就删掉重下。
+            }
 
+            TryDelete(target);
+        }
+
+        TryDelete(part);
+
+        string? lastError = null;
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var result = await DownloadAttemptAsync(release, expected, part, target, progress, ct)
+                    .ConfigureAwait(false);
+                if (result.Success)
+                {
+                    CleanupOldInstallers(directory, target);
+                }
+
+                return result;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                TryDelete(part);
+                return SoftwareDownloadResult.Failed("下载已取消。");
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.Message;
+                TryDelete(part);
+                if (attempt < 2)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(800), ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return SoftwareDownloadResult.Failed("下载已取消。");
+                    }
+                }
+            }
+        }
+
+        return SoftwareDownloadResult.Failed($"下载失败：{lastError ?? "未知错误"}");
+    }
+
+    private async Task<SoftwareDownloadResult> DownloadAttemptAsync(
+        SoftwareReleaseInfo release, string expected, string part, string target,
+        IProgress<double>? progress, CancellationToken ct)
+    {
+        using var http = CreateDownloadHttp();
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/software/releases/{release.Id}/download");
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+            .ConfigureAwait(false);
+
+        var status = (int)response.StatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            if (status == 401) return SoftwareDownloadResult.Failed("登录状态已失效，请重新登录后再下载更新。");
+            if (status == 403) return SoftwareDownloadResult.Failed("当前账号无权下载该安装包。");
+            if (status == 404) return SoftwareDownloadResult.Failed("安装包不存在或已下架，请重新检查更新。");
+            if (status == 416) return SoftwareDownloadResult.Failed("服务器不支持该下载范围，请重新下载。");
+            if (status >= 500)
+            {
+                throw new HttpRequestException($"更新服务器暂时不可用（HTTP {status}）。");
+            }
+
+            return SoftwareDownloadResult.Failed($"下载失败（HTTP {status}）。");
+        }
+
+        var total = response.Content.Headers.ContentLength is { } len && len > 0 ? len : release.FileSize;
+        if (release.FileSize > 0 && total > 0 && total != release.FileSize)
+        {
+            return SoftwareDownloadResult.Failed(
+                $"下载失败：服务端文件大小（{total} 字节）与发布信息（{release.FileSize} 字节）不一致。");
+        }
+
+        if (total < 0) total = 0;
+
+        long received = 0;
+        var lastReport = 0.0;
+        string actual;
+
+        using (var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
+        using (var destination = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None,
+                   128 * 1024, useAsync: true))
+        using (var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+        {
+            var buffer = new byte[128 * 1024];
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                int read;
+                using (var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    // 单次读取 60 秒没有数据就判定为卡死；总时长不设上限，慢链路也能下完。
+                    readCts.CancelAfter(TimeSpan.FromSeconds(60));
+                    try
+                    {
+                        read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), readCts.Token)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        throw new IOException("下载超时：60 秒没有收到数据，请检查网络后重试。");
+                    }
+                }
+
+                if (read <= 0) break;
+
+                await destination.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                sha.AppendData(buffer, 0, read);
+                received += read;
+
+                if (total > 0)
+                {
                     var value = Math.Clamp(received * 100.0 / total, 0, 100);
                     if (value - lastReport >= 0.5 || received == total)
                     {
@@ -196,32 +324,130 @@ public sealed class SoftwareService(BondApiClient api) : ISoftwareService
                         progress?.Report(value);
                     }
                 }
-
-                actual = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
             }
 
-            progress?.Report(100);
+            actual = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
+        }
 
-            var expected = (release.Sha256 ?? "").Trim().ToLowerInvariant();
-            if (expected.Length > 0 && !string.Equals(actual, expected, StringComparison.Ordinal))
+        if (received <= 0)
+        {
+            throw new IOException("下载内容为空，请稍后重试。");
+        }
+
+        if (total > 0 && received != total)
+        {
+            throw new IOException($"下载不完整（已接收 {received} / {total} 字节），请重试。");
+        }
+
+        progress?.Report(100);
+
+        if (!string.Equals(actual, expected, StringComparison.Ordinal))
+        {
+            TryDelete(part);
+            return SoftwareDownloadResult.VerifyFailed(actual);
+        }
+
+        try
+        {
+            File.Move(part, target, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(part);
+            return SoftwareDownloadResult.Failed(
+                $"无法保存安装包：{ex.Message}。请关闭正在运行的安装程序后重试。");
+        }
+
+        return SoftwareDownloadResult.Ok(target, release.Version, actual);
+    }
+
+    private HttpClient CreateDownloadHttp()
+    {
+        var http = new HttpClient
+        {
+            BaseAddress = new Uri(api.BaseUrl),
+            // 下载大文件不设总超时；读取阶段用 60 秒无数据判定卡死。
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+
+        if (!string.IsNullOrWhiteSpace(api.AccessToken))
+        {
+            http.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", api.AccessToken);
+        }
+
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+        return http;
+    }
+
+    private static bool HasEnoughDiskSpace(string directory, long fileSize, out string error)
+    {
+        error = "";
+        if (fileSize <= 0) return true;
+
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(directory));
+            if (string.IsNullOrWhiteSpace(root)) return true;
+
+            var drive = new DriveInfo(root);
+            if (!drive.IsReady) return true;
+
+            // 安装包本身 + 64MB 余量（解压/临时文件/日志）。
+            var required = fileSize + 64L * 1024 * 1024;
+            if (drive.AvailableFreeSpace >= required) return true;
+
+            error = $"磁盘空间不足：安装包需要 {FormatSize(fileSize)}，当前可用 {FormatSize(drive.AvailableFreeSpace)}。";
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static void CleanupOldInstallers(string directory, string keep)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(directory, "*.exe"))
+            {
+                if (string.Equals(file, keep, StringComparison.OrdinalIgnoreCase)) continue;
+                var name = Path.GetFileName(file);
+                if (name.StartsWith("Bond-", StringComparison.OrdinalIgnoreCase)
+                    && name.Contains("-setup", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryDelete(file);
+                }
+            }
+
+            foreach (var part in Directory.EnumerateFiles(directory, "*.part"))
             {
                 TryDelete(part);
-                return SoftwareDownloadResult.VerifyFailed(actual);
             }
+        }
+        catch
+        {
+            // 清理失败不影响本次下载。
+        }
+    }
 
-            File.Move(part, target, overwrite: true);
-            return SoftwareDownloadResult.Ok(target, release.Version, actual);
-        }
-        catch (OperationCanceledException)
+    private static string NormalizeSha256(string? value) =>
+        (value ?? "").Trim().ToLowerInvariant();
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "—";
+        string[] units = ["B", "KB", "MB", "GB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
         {
-            TryDelete(part);
-            return SoftwareDownloadResult.Failed("下载已取消。");
+            value /= 1024;
+            unit++;
         }
-        catch (Exception ex)
-        {
-            TryDelete(part);
-            return SoftwareDownloadResult.Failed($"下载失败：{ex.Message}");
-        }
+
+        return unit == 0 ? $"{value:0} B" : $"{value:0.0} {units[unit]}";
     }
 
     /// <summary>

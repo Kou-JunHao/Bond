@@ -18,7 +18,7 @@
                         <TextBlock Text="{Binding AboutVersionText, StringFormat='当前版本 v{0}'}"
                                    Classes="settingsmono"
                                    FontSize="12.5" Foreground="{DynamicResource BondPrimary}" />
-                        <TextBlock Text="检查更新只查询生产发布，不会自动安装；下载后由你手动运行安装包。"
+                        <TextBlock Text="检查更新只查询生产发布，不会静默安装；下载完成后可自动打开安装包，安装向导仍由你确认。"
                                    FontSize="11.5" LineHeight="18" TextWrapping="Wrap"
                                    Foreground="{DynamicResource BondTertiary}" />
                     </StackPanel>
@@ -66,6 +66,13 @@
                                Text="{Binding UpdateChannelHint}"
                                IsVisible="{Binding UpdateChannelHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <CheckBox IsChecked="{Binding UpdateAutoOpenInstaller, Mode=TwoWay}"
+                              ToolTip.Tip="下载完成后自动启动安装程序；仍会显示安装向导，由你确认安装" />
+                    <TextBlock Text="下载完成后自动打开安装包" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource BondSecondary}" />
+                </StackPanel>
 
                 <!-- 强制更新：不可关闭，只能去下载安装 -->
                 <Border IsVisible="{Binding IsForceUpdate}"

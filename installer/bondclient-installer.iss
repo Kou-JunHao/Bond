@@ -3,7 +3,7 @@
 ; 依赖：先执行 dotnet publish BondClient\Bond.csproj -c Release -r win-x64 --self-contained true -o publish\BondClient-win-x64
 
 #define MyAppName "Bond"
-#define MyAppVersion "2.1.1"
+#define MyAppVersion "2.1.2"
 #define MyAppPublisher "Bond"
 #define MyAppExeName "Bond.exe"
 #define MyAppUrl "https://bond-admin.skkk.uno"
@@ -35,6 +35,8 @@ SolidCompression=yes
 WizardStyle=modern
 WizardImageFile=wizard.bmp
 WizardSmallImageFile=wizard-small.bmp
+CloseApplications=yes
+RestartApplications=no
 ShowLanguageDialog=yes
 LanguageDetectionMethod=uilanguage
 DefaultDialogFontName=Microsoft YaHei UI

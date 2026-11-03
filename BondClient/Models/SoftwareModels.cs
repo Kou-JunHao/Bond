@@ -154,14 +154,14 @@ public sealed class SoftwareDownloadResult
     public string? ActualSha256 { get; init; }
     public string Version { get; init; } = "";
 
-    public static SoftwareDownloadResult Ok(string path, string version, string actualSha256) => new()
+    public static SoftwareDownloadResult Ok(string path, string version, string actualSha256, string? message = null) => new()
     {
         Success = true,
         Verified = true,
         Path = path,
         Version = version,
         ActualSha256 = actualSha256,
-        Message = "安装包已下载并通过 SHA-256 校验",
+        Message = string.IsNullOrWhiteSpace(message) ? "安装包已下载并通过 SHA-256 校验" : message,
     };
 
     public static SoftwareDownloadResult VerifyFailed(string actualSha256) => new()
