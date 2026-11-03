@@ -3,10 +3,10 @@
 ; 依赖：先执行 dotnet publish BondClient\Bond.csproj -c Release -r win-x64 --self-contained true -o publish\BondClient-win-x64
 
 #define MyAppName "Bond"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.1.1"
 #define MyAppPublisher "Bond"
 #define MyAppExeName "Bond.exe"
-#define MyAppUrl "https://bond-admin.sg.skkk.uno"
+#define MyAppUrl "https://bond-admin.skkk.uno"
 
 [Setup]
 AppId={{2F4C1E0A-9B7D-4A2E-8C61-5D7E3F9A1B24}
@@ -46,7 +46,7 @@ VersionInfoCopyright=Copyright 2026 {#MyAppPublisher}
 MinVersion=10.0.17763
 
 [Languages]
-Name: "chinesesimplified"; MessagesFile: "..\localsend\scripts\Languages\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]

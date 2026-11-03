@@ -187,7 +187,7 @@ public class ConfigService {
             {"workspace.max_file_size", "2147483648", "long", "工作区单文件最大体积(字节)"},
             {"workspace.file_retention_days", "90", "int", "文件保留天数"},
             {"workspace.invite_expire_days", "7", "int", "邀请链接有效期(天)"},
-            {"invite.public_base_url", "https://bond-api.sg.skkk.uno", "string", "邀请落地页对外域名（拼接 /i/{token} URL）"},
+            {"invite.public_base_url", "https://bond-api.skkk.uno", "string", "邀请落地页对外域名（拼接 /i/{token} URL）"},
             {"user.allow_register", "true", "boolean", "是否允许新用户注册"},
             {"friend.request_expire_days", "7", "int", "好友请求有效期(天)"},
             {"friend.max_friends", "500", "int", "最大好友数"},

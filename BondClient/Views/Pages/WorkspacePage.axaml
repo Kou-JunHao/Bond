@@ -501,7 +501,7 @@
                     </Grid>
 
                     <TextBlock Classes="meta" FontSize="11.5" TextWrapping="Wrap"
-                               Text="把成员发给你的邀请链接（形如 https://bond-api.sg.skkk.uno/i/…）或 43 位邀请码粘贴到下面，先校验再确认加入。" />
+                               Text="把成员发给你的邀请链接（形如 https://bond-api.skkk.uno/i/…）或 43 位邀请码粘贴到下面，先校验再确认加入。" />
 
                     <StackPanel Spacing="6">
                         <TextBlock Classes="meta" Text="邀请链接 / 邀请码" />

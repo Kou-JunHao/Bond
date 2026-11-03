@@ -34,7 +34,7 @@ public class CorsConfig {
     /**
      * 未配置时只放行本机开发端口、admin-web 与**自身站点**，宁可开发时手动加，也不默认全开。
      *
-     * <p>自身站点（{@code bond-api.sg.skkk.uno} / {@code api.sg.skkk.uno}）必须在内：
+     * <p>自身站点（{@code bond-api.skkk.uno} / {@code api.skkk.uno}）必须在内：
      * 分享落地页 {@code GET /s/{token}} 与提取码校验 {@code POST /s/{token}/verify} 是**同源**请求，
      * 但浏览器对 POST 也会带 {@code Origin}；而 nginx TLS 终止后回源是 http，
      * 网关看到的 request scheme 是 http、Origin 是 https → Spring 判定为跨域请求，
@@ -45,10 +45,10 @@ public class CorsConfig {
             "http://127.0.0.1:5173",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "https://admin.sg.skkk.uno",
-            "https://bond-admin.sg.skkk.uno",
-            "https://bond-api.sg.skkk.uno",
-            "https://api.sg.skkk.uno");
+            "https://admin.skkk.uno",
+            "https://bond-admin.skkk.uno",
+            "https://bond-api.skkk.uno",
+            "https://api.skkk.uno");
 
     static final List<String> ALLOWED_METHODS = List.of(
             "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");

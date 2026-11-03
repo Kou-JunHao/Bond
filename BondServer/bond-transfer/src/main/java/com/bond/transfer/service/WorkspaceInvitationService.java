@@ -51,7 +51,7 @@ public class WorkspaceInvitationService {
         inv.setExpiresAt(LocalDateTime.now().plusDays(expireDays));
         invitationMapper.insert(inv);
 
-        String base = configService.get("invite.public_base_url", "https://bond-api.sg.skkk.uno");
+        String base = configService.get("invite.public_base_url", "https://bond-api.skkk.uno");
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }

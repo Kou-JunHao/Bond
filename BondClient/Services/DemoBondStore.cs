@@ -126,7 +126,7 @@ public sealed partial class DemoBondStore :
         {
             Id = Guid.NewGuid().ToString("N"),
             Token = Guid.NewGuid().ToString("N"),
-            Url = "https://bond-api.sg.skkk.uno/s/demo-token",
+            Url = "https://bond-api.skkk.uno/s/demo-token",
             FileName = file.Name,
             FileSize = file.Size,
             // task-183：演示模式同样标记文件夹分享（UI 徽标/文案按真实节点类型走）。
@@ -468,7 +468,7 @@ public sealed partial class DemoBondStore :
     }
 
     public Task<string?> GenerateInviteLinkAsync(WorkspaceItem workspace) =>
-        Task.FromResult<string?>($"https://bond-api.sg.skkk.uno/ws/join/demo-{workspace.Id}");
+        Task.FromResult<string?>($"https://bond-api.skkk.uno/ws/join/demo-{workspace.Id}");
 
     public Task InviteFriendAsync(WorkspaceItem workspace, string userIdInput) => Task.CompletedTask;
 

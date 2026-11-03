@@ -47,8 +47,8 @@ class CorsConfigTest {
      */
     private static MockServerWebExchange actualPost(String origin) {
         MockServerHttpRequest request = MockServerHttpRequest
-                .post("http://bond-api.sg.skkk.uno/s/" + TOKEN + "/verify")
-                .header(HttpHeaders.HOST, "bond-api.sg.skkk.uno")
+                .post("http://bond-api.skkk.uno/s/" + TOKEN + "/verify")
+                .header(HttpHeaders.HOST, "bond-api.skkk.uno")
                 .header(HttpHeaders.ORIGIN, origin)
                 .header(HttpHeaders.CONTENT_TYPE, "application/json")
                 .body("{\"code\":\"1234\"}");
@@ -72,7 +72,7 @@ class CorsConfigTest {
 
     @Test
     void whitelistedOriginPreflightAddsCorsHeaders() {
-        CorsWebFilter filter = filterFor("http://localhost:5173, https://admin.sg.skkk.uno");
+        CorsWebFilter filter = filterFor("http://localhost:5173, https://bond-admin.skkk.uno");
         MockServerWebExchange exchange = preflight("http://localhost:5173");
 
         run(filter, exchange);
@@ -94,17 +94,17 @@ class CorsConfigTest {
     @Test
     @DisplayName("默认白名单必须含自身站点（分享落地页同源 POST 被误判为跨域时不能被 403）")
     void defaultOriginsContainOwnSites() {
-        assertTrue(CorsConfig.DEFAULT_ORIGINS.contains("https://bond-api.sg.skkk.uno"));
-        assertTrue(CorsConfig.DEFAULT_ORIGINS.contains("https://api.sg.skkk.uno"));
+        assertTrue(CorsConfig.DEFAULT_ORIGINS.contains("https://bond-api.skkk.uno"));
+        assertTrue(CorsConfig.DEFAULT_ORIGINS.contains("https://api.skkk.uno"));
     }
 
     @Test
-    @DisplayName("Origin=https://bond-api.sg.skkk.uno 的实际 POST：通过校验并回写 ACAO（线上 403 回归用例）")
+    @DisplayName("Origin=https://bond-api.skkk.uno 的实际 POST：通过校验并回写 ACAO（线上 403 回归用例）")
     void sameSiteActualPostPassesCors() {
         // 生产：nginx TLS 终止 → 回源 http://127.0.0.1:8080，网关看到 scheme=http，
-        // 浏览器带 Origin=https://bond-api.sg.skkk.uno → 被 Spring 判定为跨域；白名单必须放行。
+        // 浏览器带 Origin=https://bond-api.skkk.uno → 被 Spring 判定为跨域；白名单必须放行。
         CorsWebFilter filter = filterFor("");
-        for (String origin : java.util.List.of("https://bond-api.sg.skkk.uno", "https://api.sg.skkk.uno")) {
+        for (String origin : java.util.List.of("https://bond-api.skkk.uno", "https://api.skkk.uno")) {
             MockServerWebExchange exchange = actualPost(origin);
 
             run(filter, exchange);
@@ -136,7 +136,7 @@ class CorsConfigTest {
 
     @Test
     void unknownOriginPreflightRejectedWithoutCorsHeaders() {
-        CorsWebFilter filter = filterFor("https://admin.sg.skkk.uno");
+        CorsWebFilter filter = filterFor("https://bond-admin.skkk.uno");
         MockServerWebExchange exchange = preflight("https://evil.example");
 
         run(filter, exchange);

@@ -67,8 +67,8 @@
         </a-form>
 
         <div class="form-foot">
-          <span><ApiOutlined /> API：bond-api.sg.skkk.uno</span>
-          <a href="https://bond.sg.skkk.uno" target="_blank" rel="noopener">前往客户端站点 <ArrowRightOutlined /></a>
+          <span><ApiOutlined /> API：bond-api.skkk.uno</span>
+          <a href="https://bond.skkk.uno" target="_blank" rel="noopener">前往客户端站点 <ArrowRightOutlined /></a>
         </div>
       </div>
 

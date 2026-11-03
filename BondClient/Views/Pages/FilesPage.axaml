@@ -205,8 +205,8 @@
             <suki:GlassCard Background="{DynamicResource BondSurface}" BorderBrush="{DynamicResource BondBorder}" BorderThickness="1" IsOpaque="True" Padding="0">
                 <Grid RowDefinitions="Auto,*,Auto">
 
-                    <!-- 工具条：面包屑导航 + 排序 + 视图切换 -->
-                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="12,8,14,8">
+                    <!-- 工具条：面包屑导航 + 类型筛选 + 排序 + 视图切换 -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" Margin="12,8,14,8">
                         <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                             <Button Classes="ghosticon" Command="{Binding GoUpCommand}" Padding="6"
                                     MinWidth="32" MinHeight="32" ToolTip.Tip="上一级">
@@ -242,8 +242,23 @@
                         <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="meta"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
 
+                        <!-- 类型筛选（按扩展名分组，持久化到 prefs.json） -->
+                        <ComboBox Grid.Column="3" Width="118" Height="30" MinHeight="30"
+                                  ItemsSource="{Binding TypeFilterOptions}"
+                                  SelectedItem="{Binding SelectedTypeFilter}"
+                                  FontSize="11.5" VerticalContentAlignment="Center"
+                                  Margin="0,0,8,0"
+                                  AutomationProperties.Name="按文件类型筛选"
+                                  ToolTip.Tip="按文件类型筛选当前目录（文件夹始终显示）">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TypeFilterOption">
+                                    <TextBlock Text="{Binding Label}" FontSize="11.5" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
                         <!-- 排序方式（持久化到 prefs.json） -->
-                        <ComboBox Grid.Column="3" Width="174" Height="30" MinHeight="30"
+                        <ComboBox Grid.Column="4" Width="174" Height="30" MinHeight="30"
                                   ItemsSource="{Binding SortOptions}"
                                   SelectedItem="{Binding SelectedSort}"
                                   FontSize="11.5" VerticalContentAlignment="Center"
@@ -256,7 +271,7 @@
                         </ComboBox>
 
                         <!-- 列表 / 平铺切换（状态持久化） -->
-                        <Button Grid.Column="4" Classes="ghosticon" Command="{Binding ToggleViewCommand}"
+                        <Button Grid.Column="5" Classes="ghosticon" Command="{Binding ToggleViewCommand}"
                                 Padding="7,5" MinWidth="30" MinHeight="30" Margin="6,0,0,0"
                                 AutomationProperties.Name="切换列表平铺视图"
                                 ToolTip.Tip="{Binding ViewToggleTip}">
@@ -666,6 +681,28 @@
                         <Button Classes="soft" Command="{Binding UploadCommand}" Padding="14,6"
                                 HorizontalAlignment="Center" Margin="0,4,0,0">
                             <TextBlock Text="上传文件" FontSize="12" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 空状态：当前目录没有所选类型的文件 -->
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Spacing="10" IsVisible="{Binding IsTypeFilterEmpty}" MaxWidth="420">
+                        <Border Width="56" Height="56" CornerRadius="28"
+                                Background="{DynamicResource BondSurfaceAlt}">
+                            <mi:MaterialIcon Kind="FilterVariantRemove" IconSize="24"
+                                             Foreground="{DynamicResource BondTertiary}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding TypeFilterEmptyTitle}" FontSize="13" FontWeight="Medium"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding TypeFilterEmptyHint}"
+                                   FontSize="11.5" Foreground="{DynamicResource BondTertiary}"
+                                   HorizontalAlignment="Center" />
+                        <Button Classes="soft" Command="{Binding ClearTypeFilterCommand}" Padding="14,6"
+                                HorizontalAlignment="Center" Margin="0,4,0,0"
+                                ToolTip.Tip="恢复显示当前目录全部文件">
+                            <TextBlock Text="清除类型筛选" FontSize="12" />
                         </Button>
                     </StackPanel>
 

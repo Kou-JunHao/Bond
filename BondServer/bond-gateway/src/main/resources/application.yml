@@ -31,7 +31,7 @@ bond:
     # 写 "*" 会允许所有来源但强制关闭 credentials 并打 WARN，禁止二者同时成立。
     # 自身站点（bond-api / api）必须在内：分享落地页 POST /s/{token}/verify 是同源请求，
     # 但浏览器会带 https Origin，而网关从 nginx 收到的是 http 回源 → 会被当成跨域校验（2026-10-29 修复）。
-    allowed-origins: ${BOND_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://admin.sg.skkk.uno,https://bond-admin.sg.skkk.uno,https://bond-api.sg.skkk.uno,https://api.sg.skkk.uno}
+    allowed-origins: ${BOND_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,https://admin.skkk.uno,https://bond-admin.skkk.uno,https://bond-api.skkk.uno,https://api.skkk.uno}
 
 # 容器 healthcheck 用：只暴露 health/info；不经过路由/JWT。nginx 侧建议 /actuator/ 直接 404
 # （见 deploy/OPS-BASELINE.md），避免 GET / 反代把 health 暴露到公网。

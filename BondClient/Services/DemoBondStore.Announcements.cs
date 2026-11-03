@@ -37,7 +37,7 @@ public sealed partial class DemoBondStore : IAnnouncementService
         {
             Id = "demo-announce-3",
             Title = "安全提醒：请勿在第三方站点输入提取码",
-            Content = "近期发现仿冒 Bond 分享页面的钓鱼站点，请在官方域名（bond-api.sg.skkk.uno）内输入提取码。",
+            Content = "近期发现仿冒 Bond 分享页面的钓鱼站点，请在官方域名（bond-api.skkk.uno）内输入提取码。",
             Level = AnnouncementLevel.Critical,
             PublishedAtMillis = DateTimeOffset.Now.AddMinutes(-5).ToUnixTimeMilliseconds()
         }

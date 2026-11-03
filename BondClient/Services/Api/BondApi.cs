@@ -351,14 +351,14 @@ public class AnnouncementUnreadCountDto
 /// Bond 后端客户端。
 ///
 /// 与旧版 <c>BondClient/Services/ApiClient.cs</c> 的约定保持一致：
-/// · 基址默认 https://bond-api.sg.skkk.uno（旧客户端 DefaultApiBaseUrl）
+/// · 基址默认 https://bond-api.skkk.uno（旧客户端 DefaultApiBaseUrl）
 /// · Bearer token + 401 时自动用 refreshToken 换一次新 token 再重试
 /// · token 落盘在 %LocalAppData%\Bond\auth.json
 /// 差别：不再强制 JSON 源生成，改用大小写不敏感的反射序列化，便于快速对齐后端。
 /// </summary>
 public sealed partial class BondApiClient : IDisposable
 {
-    public const string DefaultBaseUrl = "https://bond-api.sg.skkk.uno";
+    public const string DefaultBaseUrl = "https://bond-api.skkk.uno";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

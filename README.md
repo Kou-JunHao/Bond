@@ -1,4 +1,4 @@
-﻿# Bond
+# Bond
 
 Bond 是一个自托管的「网盘 + 工作区 + 轻聊天 + 在线文档」一体化应用，包含三部分：
 
@@ -45,7 +45,7 @@ tools/          # 开发辅助工具
 ```powershell
 dotnet build BondClient/Bond.csproj -c Release
 # 自包含发布 + 安装包（需要 .NET 10 SDK 与 Inno Setup 6）
-pwsh scripts/build-installer.ps1 -Version 2.1.0
+pwsh scripts/build-installer.ps1 -Version 2.1.1
 ```
 
 客户端默认连接的服务端地址可在「设置 → 服务端地址」修改。

@@ -46,6 +46,93 @@ public sealed class SortOption(string label, FileSort sort)
     public FileSort Sort { get; } = sort;
 }
 
+/// <summary>文件页类型筛选分组。</summary>
+public enum FileTypeFilterKind
+{
+    All,
+    Image,
+    Document,
+    Code,
+    Video,
+    Audio,
+    Archive,
+    Other
+}
+
+/// <summary>
+/// 文件页「类型」筛选项：按扩展名把文件归组。
+/// 文件夹不参与类型判断，调用方需保留文件夹以便继续导航。
+/// </summary>
+public sealed class TypeFilterOption(string label, FileTypeFilterKind kind)
+{
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "heic", "heif",
+        "tif", "tiff", "psd", "ai", "raw"
+    };
+
+    private static readonly HashSet<string> DocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+        "rtf", "csv", "txt", "md", "markdown"
+    };
+
+    private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "json", "xml", "yaml", "yml", "html", "htm", "css", "js", "ts", "jsx", "tsx",
+        "vue", "cs", "java", "kt", "py", "go", "rs", "c", "h", "cpp", "hpp", "sh",
+        "ps1", "sql", "conf", "properties", "ini", "toml", "log", "php", "rb", "swift"
+    };
+
+    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mp4", "mov", "avi", "mkv", "webm", "flv", "m4v", "wmv"
+    };
+
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mp3", "wav", "flac", "aac", "m4a", "ogg", "wma", "opus", "mid", "midi"
+    };
+
+    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso", "cab"
+    };
+
+    public string Label { get; } = label;
+
+    public FileTypeFilterKind Kind { get; } = kind;
+
+    public bool IsAll => Kind == FileTypeFilterKind.All;
+
+    /// <summary>文件是否属于该分组（文件夹一律返回 false）。</summary>
+    public bool Matches(NodeItem node)
+    {
+        if (node.IsFolder) return false;
+        var ext = node.Extension;
+        return Kind switch
+        {
+            FileTypeFilterKind.All => true,
+            FileTypeFilterKind.Image => ImageExtensions.Contains(ext),
+            FileTypeFilterKind.Document => DocumentExtensions.Contains(ext),
+            FileTypeFilterKind.Code => CodeExtensions.Contains(ext),
+            FileTypeFilterKind.Video => VideoExtensions.Contains(ext),
+            FileTypeFilterKind.Audio => AudioExtensions.Contains(ext),
+            FileTypeFilterKind.Archive => ArchiveExtensions.Contains(ext),
+            FileTypeFilterKind.Other => !IsKnown(ext),
+            _ => true
+        };
+    }
+
+    private static bool IsKnown(string ext) =>
+        ImageExtensions.Contains(ext)
+        || DocumentExtensions.Contains(ext)
+        || CodeExtensions.Contains(ext)
+        || VideoExtensions.Contains(ext)
+        || AudioExtensions.Contains(ext)
+        || ArchiveExtensions.Contains(ext);
+}
+
 /// <summary>
 /// 文件页排序比较器：文件夹永远排在文件前面，组内按选定的键排序，
 /// 主键相等时用名称兜底保证顺序稳定（重启前后一致）。
@@ -128,11 +215,26 @@ public partial class FilesPageViewModel : ObservableObject
             new SortOption("类型（扩展名）", FileSort.Type)
         ];
 
+        TypeFilterOptions =
+        [
+            new TypeFilterOption("全部类型", FileTypeFilterKind.All),
+            new TypeFilterOption("图片", FileTypeFilterKind.Image),
+            new TypeFilterOption("文档", FileTypeFilterKind.Document),
+            new TypeFilterOption("代码", FileTypeFilterKind.Code),
+            new TypeFilterOption("视频", FileTypeFilterKind.Video),
+            new TypeFilterOption("音频", FileTypeFilterKind.Audio),
+            new TypeFilterOption("压缩包", FileTypeFilterKind.Archive),
+            new TypeFilterOption("其他", FileTypeFilterKind.Other)
+        ];
+
         var prefs = LocalPrefs.Current;
         _isTileView = string.Equals(prefs.FilesViewMode, "tile", StringComparison.OrdinalIgnoreCase);
         _selectedSort = SortOptions.FirstOrDefault(o =>
             string.Equals(o.Sort.ToString(), prefs.FileSortBy, StringComparison.OrdinalIgnoreCase))
             ?? SortOptions[0];
+        _selectedTypeFilter = TypeFilterOptions.FirstOrDefault(o =>
+            string.Equals(o.Kind.ToString(), prefs.FilesTypeFilter, StringComparison.OrdinalIgnoreCase))
+            ?? TypeFilterOptions[0];
 
         _files.Changed += (_, _) => SyncFromService();
         _uploads.UploadsChanged += (_, _) =>
@@ -207,6 +309,9 @@ public partial class FilesPageViewModel : ObservableObject
     /// <summary>排序下拉数据源。</summary>
     public IReadOnlyList<SortOption> SortOptions { get; }
 
+    /// <summary>类型筛选下拉数据源。</summary>
+    public IReadOnlyList<TypeFilterOption> TypeFilterOptions { get; }
+
     [ObservableProperty]
     private string _path = "/";
 
@@ -227,6 +332,10 @@ public partial class FilesPageViewModel : ObservableObject
 
     [ObservableProperty]
     private SortOption _selectedSort;
+
+    /// <summary>当前类型筛选；行数据源会按它过滤（文件夹不受影响）。</summary>
+    [ObservableProperty]
+    private TypeFilterOption _selectedTypeFilter;
 
     [ObservableProperty]
     private NodeItem? _selected;
@@ -294,7 +403,17 @@ public partial class FilesPageViewModel : ObservableObject
     /// <summary>空态分两种文案：搜索无结果 / 当前目录为空。</summary>
     public bool IsSearchEmpty => IsEmpty && !HasNoWorkspace && !string.IsNullOrWhiteSpace(Keyword);
 
-    public bool IsFolderEmpty => IsEmpty && !HasNoWorkspace && string.IsNullOrWhiteSpace(Keyword);
+    /// <summary>是否启用了「类型」筛选（全部类型不算）。</summary>
+    public bool HasTypeFilter => SelectedTypeFilter is { IsAll: false };
+
+    public bool IsFolderEmpty => IsEmpty && !HasNoWorkspace && string.IsNullOrWhiteSpace(Keyword) && !HasTypeFilter;
+
+    /// <summary>空态第三类：当前目录有文件，但都被类型筛选挡掉了。</summary>
+    public bool IsTypeFilterEmpty => IsEmpty && !HasNoWorkspace && !IsSearchActive && HasTypeFilter;
+
+    public string TypeFilterEmptyTitle => $"当前目录没有「{SelectedTypeFilter?.Label}」文件";
+
+    public string TypeFilterEmptyHint => "切换类型或清除筛选，查看全部文件";
 
     /// <summary>首屏骨架：正在加载且还没有任何数据。</summary>
     public bool ShowSkeleton => IsLoading && View.Count == 0;
@@ -531,7 +650,9 @@ public partial class FilesPageViewModel : ObservableObject
             return;
         }
 
-        var list = _searchResults;
+        var list = HasTypeFilter
+            ? _searchResults.Where(n => !n.IsFolder && SelectedTypeFilter.Matches(n)).ToList()
+            : _searchResults;
 
         _selection.RemoveWhere(node => !list.Contains(node));
         if (Selected is not null && !list.Contains(Selected))
@@ -558,6 +679,10 @@ public partial class FilesPageViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoWorkspace));
         OnPropertyChanged(nameof(IsSearchEmpty));
         OnPropertyChanged(nameof(IsFolderEmpty));
+        OnPropertyChanged(nameof(IsTypeFilterEmpty));
+        OnPropertyChanged(nameof(HasTypeFilter));
+        OnPropertyChanged(nameof(TypeFilterEmptyTitle));
+        OnPropertyChanged(nameof(TypeFilterEmptyHint));
         OnPropertyChanged(nameof(ShowSkeleton));
         OnPropertyChanged(nameof(IsRenaming));
         OnPropertyChanged(nameof(SearchSummary));
@@ -587,6 +712,12 @@ public partial class FilesPageViewModel : ObservableObject
 
     [RelayCommand]
     private void ClearSearch() => Keyword = string.Empty;
+
+    [RelayCommand]
+    private void ClearTypeFilter()
+    {
+        if (SelectedTypeFilter is not null) SelectedTypeFilter = TypeFilterOptions[0];
+    }
 
     [RelayCommand]
     private async Task RetrySearchAsync()
@@ -654,6 +785,18 @@ public partial class FilesPageViewModel : ObservableObject
         LocalPrefs.Current.FileSortBy = value.Sort.ToString();
         LocalPrefs.Current.Save();
         ApplyFilter();
+    }
+
+    partial void OnSelectedTypeFilterChanged(TypeFilterOption value)
+    {
+        if (value is null) return;
+        LocalPrefs.Current.FilesTypeFilter = value.Kind.ToString();
+        LocalPrefs.Current.Save();
+        OnPropertyChanged(nameof(HasTypeFilter));
+        OnPropertyChanged(nameof(IsTypeFilterEmpty));
+        OnPropertyChanged(nameof(TypeFilterEmptyTitle));
+        if (IsSearchActive) ApplySearchView();
+        else ApplyFilter();
     }
 
     partial void OnSelectedChanged(NodeItem? value)
@@ -1283,6 +1426,12 @@ public partial class FilesPageViewModel : ObservableObject
         var filtered = string.IsNullOrEmpty(keyword)
             ? scoped
             : scoped.Where(n => n.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+
+        // 类型筛选是「视图级」筛选：文件夹始终保留，方便继续向下导航。
+        if (HasTypeFilter)
+        {
+            filtered = filtered.Where(n => n.IsFolder || SelectedTypeFilter.Matches(n));
+        }
 
         var list = filtered.ToList();
         list.Sort(NodeComparer.For(SelectedSort?.Sort ?? FileSort.NameAsc));
@@ -4255,6 +4404,9 @@ public sealed class LocalPrefs
     /// <summary>文件页排序键（FileSort 枚举名）。</summary>
     public string FileSortBy { get; set; } = "NameAsc";
 
+    /// <summary>文件页类型筛选（FileTypeFilterKind 枚举名，默认 All）。</summary>
+    public string FilesTypeFilter { get; set; } = "All";
+
     /// <summary>文件页视图：list / tile。</summary>
     public string FilesViewMode { get; set; } = "list";
 
@@ -4309,6 +4461,19 @@ public sealed class LocalPrefs
         catch
         {
             // 文件损坏时退回默认值
+        }
+
+        // 2026-10 域名迁移：旧默认 API 域名（含 .sg）已下线，老安装的 prefs.json
+        // 仍可能指向它。升级后启动时自动换到新域名，否则登录/同步会直接连不上。
+        const string legacyServerUrl = "https://bond-api.sg.skkk.uno";
+        if (string.IsNullOrWhiteSpace(prefs.ServerUrl)
+            || string.Equals(
+                prefs.ServerUrl.Trim().TrimEnd('/'),
+                legacyServerUrl,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            prefs.ServerUrl = Bond.Services.Api.BondApiClient.DefaultBaseUrl;
+            prefs.Save();
         }
 
         // 稳定设备身份：只在首次运行时生成一次，之后加不重建（重建会让服务端多出一行设备）。

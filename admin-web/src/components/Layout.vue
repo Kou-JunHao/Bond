@@ -128,7 +128,7 @@
       <a-layout-footer class="app-footer">
         <span>Bond 管理后台<span v-if="appVersion"> · v{{ appVersion }}</span></span>
         <span class="footer-sep">·</span>
-        <span>数据来自生产 API（bond-api.sg.skkk.uno）</span>
+        <span>数据来自生产 API（bond-api.skkk.uno）</span>
         <span class="footer-grow" />
         <span class="mono footer-build">build {{ buildTag }}</span>
       </a-layout-footer>
@@ -315,7 +315,7 @@ function onUserMenu({ key }: { key: string }) {
     Modal.info({
       title: '当前 API 状态',
       content:
-        '管理后台通过同域 /api 反代到网关 8080（bond-api.sg.skkk.uno），鉴权使用登录签发的 JWT（Authorization: Bearer）。',
+        '管理后台通过同域 /api 反代到网关 8080（bond-api.skkk.uno），鉴权使用登录签发的 JWT（Authorization: Bearer）。',
       okText: '知道了'
     })
   } else if (key === 'logout') {
