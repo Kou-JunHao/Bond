@@ -114,10 +114,20 @@
 
                     <!-- ═══ 快捷面板 ═══ -->
                     <Border Name="PanelContent" Background="{DynamicResource BondBg}" Opacity="0" IsVisible="False">
-                        <Grid RowDefinitions="58,Auto,*,22" Margin="16,6,16,8">
+                        <!-- ⓪ 应用图标独占第一行（24 高），① 身份行整体下移到第二行，
+                             身份行内部结构与会话/按钮位置保持原样。 -->
+                        <Grid RowDefinitions="24,58,Auto,*,22" Margin="16,6,16,8">
 
-                            <!-- ① 身份：账号头像 + 账号名 + 本机设备与连接状态 -->
-                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                            <!-- ⓪ 应用图标槽位：球体上的 Bond logo 展开后停在这一格并一直保留
+                                 （落点见 MorphSpec.IconTargetCenter*：x=16+9, y=6+24/2）。
+                                 这个 18px 的格子只给图标预留，别再往里放头像/文字。 -->
+                            <Border Grid.Row="0" Width="18" Height="18"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Background="Transparent" IsHitTestVisible="False"
+                                    ToolTip.Tip="Bond" />
+
+                            <!-- ① 身份：账号头像 + 账号名 + 本机设备与连接状态（下移一行，结构不变） -->
+                            <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
                                 <Border Width="30" Height="30" CornerRadius="15"
                                         Background="{DynamicResource BondAccentSoft}"
                                         VerticalAlignment="Center">
@@ -170,7 +180,7 @@
                             </Grid>
 
                             <!-- ② 四个高频动作（未读 / 待接收数字直接标在格子上） -->
-                            <ItemsControl Grid.Row="1" ItemsSource="{Binding QuickActions}" Margin="0,2,0,0">
+                            <ItemsControl Grid.Row="2" ItemsSource="{Binding QuickActions}" Margin="0,2,0,0">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <UniformGrid Columns="4" Rows="1" />
@@ -208,7 +218,7 @@
                             </ItemsControl>
 
                             <!-- ③④⑤ 中间区：额度 / 进行中 / 待接收 / 设备（内容多时整体滚动） -->
-                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
                               <StackPanel Spacing="8">
 
                             <!-- ③ 空间额度（拿不到就整块隐藏） -->
@@ -388,7 +398,7 @@
                             </ScrollViewer>
 
                             <!-- ⑥ 底部：设备码与版本（打开主界面在头部，避免三处重复入口） -->
-                            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" VerticalAlignment="Bottom">
+                            <Grid Grid.Row="4" ColumnDefinitions="Auto,*" VerticalAlignment="Bottom">
                                 <TextBlock Text="{Binding DeviceCode}" FontSize="9.5"
                                            Foreground="{DynamicResource BondTertiary}"
                                            TextTrimming="CharacterEllipsis"
