@@ -191,9 +191,11 @@
          顶栏工具组：统一高度基线（34），图标按钮 / 文字按钮 / 下拉框
          同高同圆角，避免「一排按钮高低不齐」。用法：
          <StackPanel Classes="toolbar" Orientation="Horizontal">
+         窗口变窄时工具组会挤到标题下面重叠，所以也可以用 WrapPanel 承载（会自动换行）：
+         <WrapPanel Classes="toolbar" ItemSpacing="8" LineSpacing="8">
          ══════════════════════════════════════════════════════════ -->
 
-    <Style Selector="StackPanel.toolbar > Button">
+    <Style Selector="StackPanel.toolbar > Button, WrapPanel.toolbar > Button">
         <Setter Property="Height" Value="34" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -202,27 +204,30 @@
 
     <Style Selector="StackPanel.toolbar > Button.primary,
                      StackPanel.toolbar > Button.outline,
-                     StackPanel.toolbar > Button.soft">
+                     StackPanel.toolbar > Button.soft,
+                     WrapPanel.toolbar > Button.primary,
+                     WrapPanel.toolbar > Button.outline,
+                     WrapPanel.toolbar > Button.soft">
         <Setter Property="Padding" Value="14,0" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="CornerRadius" Value="9" />
     </Style>
 
-    <Style Selector="StackPanel.toolbar > Button.ghosticon">
+    <Style Selector="StackPanel.toolbar > Button.ghosticon, WrapPanel.toolbar > Button.ghosticon">
         <Setter Property="Width" Value="34" />
         <Setter Property="MinWidth" Value="34" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="CornerRadius" Value="9" />
     </Style>
 
-    <Style Selector="StackPanel.toolbar > ComboBox">
+    <Style Selector="StackPanel.toolbar > ComboBox, WrapPanel.toolbar > ComboBox">
         <Setter Property="Height" Value="34" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
-    <Style Selector="StackPanel.toolbar > TextBox">
+    <Style Selector="StackPanel.toolbar > TextBox, WrapPanel.toolbar > TextBox">
         <Setter Property="Height" Value="34" />
         <Setter Property="MinHeight" Value="34" />
     </Style>

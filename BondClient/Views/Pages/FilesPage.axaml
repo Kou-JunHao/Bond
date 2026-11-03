@@ -84,9 +84,11 @@
             </Border>
         </Grid>
 
-        <!-- ===== 页面头 ===== -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-            <StackPanel Spacing="3">
+        <!-- ===== 页面头 =====
+             标题占 Auto 列、工具组占星号列；工具组用 WrapPanel：窗口变窄（或右侧信息栏展开）时
+             自动换行到下一排，而不是像以前那样挤在标题上面，把空间徽标压在「空间切换器」底下（重影）。 -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="16" Margin="0,0,0,16">
+            <StackPanel Grid.Column="0" Spacing="3" MaxWidth="360" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                     <TextBlock Classes="h1" Text="文件" VerticalAlignment="Center" />
                     <!-- 当前空间徽标：个人空间 / 团队工作区 -->
@@ -99,15 +101,19 @@
                                              Foreground="{DynamicResource BondAccent}"
                                              VerticalAlignment="Center" />
                             <TextBlock Text="{Binding CurrentSpaceName}" FontSize="11.5"
-                                       FontWeight="Medium"
+                                       FontWeight="Medium" MaxWidth="150"
+                                       TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource BondAccent}"
                                        VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                <TextBlock Classes="sub" Text="{Binding SpaceSubtitle}" />
+                <TextBlock Classes="sub" Text="{Binding SpaceSubtitle}"
+                           TextTrimming="CharacterEllipsis" />
             </StackPanel>
-            <StackPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <WrapPanel Grid.Column="1" Classes="toolbar" Orientation="Horizontal"
+                       ItemSpacing="8" LineSpacing="8"
+                       HorizontalAlignment="Right" VerticalAlignment="Center">
 
                 <!-- 空间切换器：个人空间（默认）+ 我加入的团队工作区 -->
                 <ComboBox x:Name="SpacePicker" Width="172" Height="34" MinHeight="34"
@@ -189,7 +195,7 @@
                         <TextBlock Text="新建文件夹" FontSize="12.5" />
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </WrapPanel>
         </Grid>
 
         <!-- ===== 主体：列表 + 右侧信息栏 ===== -->
