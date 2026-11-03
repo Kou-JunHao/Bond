@@ -35,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -358,6 +359,34 @@ class SoftwareServiceTest {
         softwareService.deleteRelease(5L);
         verify(releaseMapper).deleteById(5L);
         verify(objectStorage).deleteObject("software/bond-pan/1.4.0/Bond-1.4.0.exe");
+    }
+
+    @Test
+    @DisplayName("版本变更（上传/发布/下架/删除）都会刷新包的 updated_at —— 管理端「更新时间」不再卡住")
+    void releaseChangesTouchPackageUpdatedAt() {
+        // 上传新版本
+        when(packageMapper.selectByCode("bond-pan")).thenReturn(pkg(1L, "bond-pan"));
+        when(configService.getLong(SoftwareService.MAX_RELEASE_BYTES_KEY,
+                SoftwareService.DEFAULT_MAX_RELEASE_BYTES)).thenReturn(1024L);
+        when(releaseMapper.selectByVersion(1L, "1.5.0", "stable")).thenReturn(null);
+        when(releaseMapper.insert(any(SoftwareRelease.class))).thenReturn(1);
+        MockMultipartFile file = new MockMultipartFile("file", "Bond-1.5.0.exe",
+                "application/octet-stream", "hello".getBytes());
+        softwareService.uploadRelease("bond-pan", "1.5.0", null, null, null, file, 7L);
+        verify(packageMapper).touchUpdatedAt(1L);
+
+        // 发布 + 下架
+        SoftwareRelease r = release(2L, 1L, false);
+        when(releaseMapper.selectById(2L)).thenReturn(r);
+        when(packageMapper.selectById(1L)).thenReturn(pkg(1L, "bond-pan"));
+        softwareService.publishRelease(2L);
+        softwareService.unpublishRelease(2L);
+        verify(packageMapper, times(3)).touchUpdatedAt(1L);
+
+        // 删除版本
+        when(releaseMapper.selectById(3L)).thenReturn(release(3L, 1L, true));
+        softwareService.deleteRelease(3L);
+        verify(packageMapper, times(4)).touchUpdatedAt(1L);
     }
 
     @Test

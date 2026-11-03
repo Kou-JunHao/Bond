@@ -357,6 +357,8 @@ public class SoftwareService {
             }
             log.info("software release uploaded: package={} version={} channel={} size={} sha256={}",
                     pkg.getCode(), normalizedVersion, normalizedChannel, size, sha256);
+            // 版本集合变了：刷新包的 updated_at，管理端列表的「更新时间」才会跟着动
+            touchPackage(pkg.getId());
             return toDTO(release, pkg.getCode());
         } finally {
             deleteTemp(temp);
@@ -370,6 +372,7 @@ public class SoftwareService {
             releaseMapper.publishById(releaseId);
             release.setPublished(true);
             release.setPublishedAt(OffsetDateTime.now());
+            touchPackage(release.getPackageId());
         }
         return toDTO(release, requirePackageById(release.getPackageId()).getCode());
     }
@@ -381,6 +384,7 @@ public class SoftwareService {
             releaseMapper.unpublishById(releaseId);
             release.setPublished(false);
             release.setPublishedAt(null);
+            touchPackage(release.getPackageId());
         }
         return toDTO(release, requirePackageById(release.getPackageId()).getCode());
     }
@@ -389,6 +393,21 @@ public class SoftwareService {
         SoftwareRelease release = requireRelease(releaseId);
         releaseMapper.deleteById(releaseId);
         safeDelete(release.getMinioPath());
+        touchPackage(release.getPackageId());
+    }
+
+    /**
+     * 版本增删 / 发布状态变化后刷新所属包的 updated_at。
+     *
+     * <p>管理端列表的「更新时间」取的是 {@code software_packages.updated_at}；这些操作以前只动
+     * {@code software_releases}，包行没有任何 UPDATE，于是「更新时间」永远停在建包/改名那一刻
+     * （用户反馈：新上传文件不会更新时间）。</p>
+     */
+    private void touchPackage(Long packageId) {
+        if (packageId == null) {
+            return;
+        }
+        packageMapper.touchUpdatedAt(packageId);
     }
 
     // ------------------------------------------------------------------ 内部
