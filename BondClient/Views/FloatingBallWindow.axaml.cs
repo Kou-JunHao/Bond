@@ -605,8 +605,11 @@ public partial class FloatingBallWindow : Window, IBallHost
             PanelContent.Opacity = 1;
             DeviceNameDisplay.Opacity = 1;
 
-            // 展开后面板顶部是账号头像，球体 logo 已完成「飞入」动画，收起（否则会压在头像/账号名上）
-            MorphIcon.IsVisible = false;
+            // 展开后 logo 常驻面板左上角：头部第一行左侧专门留了 18px 槽位
+            // （落点见 MorphSpec.IconTargetCenter*）。这里**不能**再把它收起来——
+            // 以前隐藏它，肉眼看到的就是「应用图标被账号头像盖住后消失」。
+            MorphIcon.IsVisible = true;
+            MorphIcon.Opacity = 1;
         }
     }
 
