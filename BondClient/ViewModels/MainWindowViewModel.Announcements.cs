@@ -135,8 +135,12 @@ public partial class MainWindowViewModel
         _announcementTimer.Start();
     }
 
-    /// <summary>主窗口重新激活时调用：拉一次未读数（静默，失败保留旧值）。</summary>
-    public void OnShellActivated() => _ = RefreshAnnouncementUnreadAsync();
+    /// <summary>主窗口重新激活时调用：拉一次未读数（静默，失败保留旧值），顺带自愈收件箱红点。</summary>
+    public void OnShellActivated()
+    {
+        _ = RefreshAnnouncementUnreadAsync();
+        OnShellActivatedInbox();
+    }
 
     /// <summary>未读数后台刷新。失败不提示（公告不是核心路径，不打扰用户）。</summary>
     public async Task RefreshAnnouncementUnreadAsync()
@@ -167,6 +171,8 @@ public partial class MainWindowViewModel
             return;
         }
 
+        // 两个面板都在右上角，同时开会互相压住
+        IsInboxOpen = false;
         IsAnnouncementsOpen = true;
         // 已有数据时静默刷新（不闪骨架），首次打开显示加载态。
         _ = RefreshAnnouncementsAsync(showLoading: Announcements.Count == 0);

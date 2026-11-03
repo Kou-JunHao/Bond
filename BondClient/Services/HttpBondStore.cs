@@ -1386,24 +1386,28 @@ public sealed partial class HttpBondStore :
         var invites = await _api.GetAsync<List<InvitationDto>>("/api/workspaces/invitations").ConfigureAwait(false);
 
         // task-97：两个请求都用 ConfigureAwait(false)，续体可能在后台线程；
-        // _inbox 绑定在界面（待处理列表），必须在 UI 线程合并成一次改写。
+        // _inbox 绑定在界面（收件箱面板），必须在 UI 线程合并成一次改写。
         Ui(() =>
         {
             // task-135：先攒新的一批，再逐项同步（不 Clear，避免 Reset 残留容器）。
             var fresh = new List<InboxItem>();
 
+            // 好友申请：带上原始 id，面板里的「同意 / 忽略」才能打到 /api/friends/requests/{id}
             foreach (var r in requests?.Data ?? [])
             {
+                var name = string.IsNullOrWhiteSpace(r.FromNickname) ? r.FromUsername : r.FromNickname;
                 fresh.Add(new InboxItem
                 {
                     Id = $"fr-{r.Id}",
-                    Title = $"{(string.IsNullOrEmpty(r.FromNickname) ? r.FromUsername : r.FromNickname)} 申请添加好友",
-                    Detail = string.IsNullOrEmpty(r.Message) ? "好友申请" : r.Message,
-                    Kind = InboxKind.WorkspaceInvite,
+                    Title = $"{name} 申请添加你为好友",
+                    Detail = string.IsNullOrWhiteSpace(r.Message) ? "同意后即可发起私聊" : r.Message!,
+                    Kind = InboxKind.FriendRequest,
+                    FriendRequestId = r.Id,
                     At = r.CreatedAt is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime : DateTime.Now
                 });
             }
 
+            // 工作区邀请：带上原始 id，面板里的「接受 / 拒绝」才能打到 /api/workspaces/invitations/{id}
             foreach (var inv in invites?.Data ?? [])
             {
                 fresh.Add(new InboxItem
@@ -1412,6 +1416,7 @@ public sealed partial class HttpBondStore :
                     Title = $"{inv.InviterName} 邀请你加入「{inv.WorkspaceName}」",
                     Detail = "工作区邀请",
                     Kind = InboxKind.WorkspaceInvite,
+                    InvitationId = inv.Id,
                     At = inv.CreatedAt is { } ms ? DateTimeOffset.FromUnixTimeMilliseconds(ms).LocalDateTime : DateTime.Now
                 });
             }
@@ -1419,5 +1424,63 @@ public sealed partial class HttpBondStore :
             CollectionSync.Apply(_inbox, fresh);
             InboxChanged?.Invoke(this, EventArgs.Empty);
         });
+    }
+
+    /// <summary>
+    /// 收件箱主动刷新（收件箱面板打开 / 悬浮球展开 / 主窗口激活时调用）。
+    /// 之前收件箱只在登录时拉一次，才出现「处理完邀请后红点还在、只能重启」的问题。
+    /// </summary>
+    public async Task RefreshAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await RefreshInboxAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("[Bond] 收件箱刷新失败：" + ex.Message);
+        }
+    }
+
+    public Task<string?> AcceptAsync(InboxItem item, CancellationToken ct = default)
+        => ResolveInboxItemAsync(item, accept: true);
+
+    public Task<string?> RejectAsync(InboxItem item, CancellationToken ct = default)
+        => ResolveInboxItemAsync(item, accept: false);
+
+    /// <summary>
+    /// 同意/忽略一条收件箱事项。只认服务端结果：动作成功后重新拉一次收件箱，
+    /// 事项从列表消失、徽标随之下降（这是「红点消不掉」的根治点，不做纯本地删除）。
+    /// </summary>
+    private async Task<string?> ResolveInboxItemAsync(InboxItem item, bool accept)
+    {
+        var path = item.Kind switch
+        {
+            InboxKind.FriendRequest when item.FriendRequestId > 0 =>
+                $"/api/friends/requests/{item.FriendRequestId}/{(accept ? "accept" : "reject")}",
+            InboxKind.WorkspaceInvite when item.InvitationId > 0 =>
+                $"/api/workspaces/invitations/{item.InvitationId}/{(accept ? "accept" : "reject")}",
+            _ => null
+        };
+
+        if (path is null) return "该事项不支持此操作，请到对应页面处理";
+
+        try
+        {
+            var result = await _api.PostAsync<object>(path, new { }).ConfigureAwait(false);
+            if (result?.IsOk != true)
+                return LoadRetry.Humanize(result?.Message ?? _api.LastError ?? "操作失败", "操作失败，请稍后重试");
+
+            // 接受邀请后工作区列表要立刻出现新成员身份（配额、文件页都依赖它）
+            if (item.Kind == InboxKind.WorkspaceInvite && accept)
+                await RefreshWorkspacesAsync().ConfigureAwait(false);
+
+            await RefreshInboxAsync().ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex.Message;
+        }
     }
 }

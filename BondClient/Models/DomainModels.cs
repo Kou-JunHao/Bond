@@ -1397,18 +1397,58 @@ public sealed class InboxItem
     public InboxKind Kind { get; init; }
     public DateTime At { get; init; } = DateTime.Now;
 
+    /// <summary>好友申请的原始 id（<c>POST /api/friends/requests/{id}/accept|reject</c>）；非好友申请为 0。</summary>
+    public long FriendRequestId { get; init; }
+
+    /// <summary>工作区邀请的原始 id（<c>POST /api/workspaces/invitations/{id}/accept|reject</c>）；非邀请为 0。</summary>
+    public long InvitationId { get; init; }
+
     public Material.Icons.MaterialIconKind Icon => Kind switch
     {
         InboxKind.TransferRequest => Material.Icons.MaterialIconKind.Download,
+        InboxKind.FriendRequest => Material.Icons.MaterialIconKind.AccountPlusOutline,
         InboxKind.WorkspaceInvite => Material.Icons.MaterialIconKind.AccountGroup,
         InboxKind.SystemNotice => Material.Icons.MaterialIconKind.AlertCircleOutline,
         _ => Material.Icons.MaterialIconKind.FileDocument
     };
 
+    /// <summary>分类文案（面板里作为副标题前缀）。</summary>
+    public string KindText => Kind switch
+    {
+        InboxKind.TransferRequest => "传输任务",
+        InboxKind.FriendRequest => "好友申请",
+        InboxKind.WorkspaceInvite => "工作区邀请",
+        InboxKind.SystemNotice => "系统通知",
+        _ => "待处理"
+    };
+
+    /// <summary>主操作按钮文案：好友申请写「同意」，工作区邀请写「接受」。</summary>
+    public string AcceptText => Kind switch
+    {
+        InboxKind.FriendRequest => "同意",
+        InboxKind.WorkspaceInvite => "接受",
+        _ => "处理"
+    };
+
+    /// <summary>次操作按钮文案。</summary>
+    public string RejectText => Kind switch
+    {
+        InboxKind.FriendRequest => "忽略",
+        InboxKind.WorkspaceInvite => "拒绝",
+        _ => "忽略"
+    };
+
+    /// <summary>是否支持同意/拒绝（系统通知这类只读事项不显示按钮）。</summary>
+    public bool CanAct => Kind is InboxKind.FriendRequest or InboxKind.WorkspaceInvite;
+
     public string TimeText => At.Date == DateTime.Today ? At.ToString("HH:mm") : At.ToString("MM-dd");
 }
 
-public enum InboxKind { TransferRequest, WorkspaceInvite, SystemNotice }
+/// <summary>
+/// 收件箱事项类型。好友申请与工作区邀请都必须能在客户端处理掉——
+/// 只有能被处理的事项才允许进徽标计数，否则会出现「有红点却没有任何内容、也消不掉」。
+/// </summary>
+public enum InboxKind { TransferRequest, FriendRequest, WorkspaceInvite, SystemNotice }
 
 /// <summary>本地存储配额概览。</summary>
 /// <summary>

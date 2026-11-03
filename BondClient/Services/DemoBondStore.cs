@@ -543,6 +543,22 @@ public sealed partial class DemoBondStore :
         if (_inbox.Remove(item)) InboxChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Demo 模式没有服务端收件箱：保持当前内容，不做网络刷新。</summary>
+    public Task RefreshAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>Demo 模式下同意 = 本地移除该条（真实实现走服务端接口）。</summary>
+    public Task<string?> AcceptAsync(InboxItem item, CancellationToken ct = default)
+    {
+        Dismiss(item);
+        return Task.FromResult<string?>(null);
+    }
+
+    public Task<string?> RejectAsync(InboxItem item, CancellationToken ct = default)
+    {
+        Dismiss(item);
+        return Task.FromResult<string?>(null);
+    }
+
     // ── ISessionService ─────────────────────────────────────────
     private string _deviceName = Environment.MachineName;
 

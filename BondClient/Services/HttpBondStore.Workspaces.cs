@@ -172,6 +172,8 @@ public sealed partial class HttpBondStore
             throw new InvalidOperationException(result?.Message ?? _api.LastError ?? "接受邀请失败");
 
         await RefreshWorkspacesAsync().ConfigureAwait(false);
+        // 邀请已被消费：同步收件箱，否则悬浮球/收件箱的红点会一直挂着（只能重启才消失）
+        await RefreshInboxAsync().ConfigureAwait(false);
     }
 
     /// <summary>拒绝邀请（POST /api/workspaces/invitations/{invId}/reject）。</summary>
@@ -182,6 +184,8 @@ public sealed partial class HttpBondStore
 
         if (result?.IsOk != true)
             throw new InvalidOperationException(result?.Message ?? _api.LastError ?? "拒绝邀请失败");
+
+        await RefreshInboxAsync().ConfigureAwait(false);
     }
 
     /// <summary>校验邀请链接/邀请码（GET /api/invite/{token}，匿名可读）。</summary>

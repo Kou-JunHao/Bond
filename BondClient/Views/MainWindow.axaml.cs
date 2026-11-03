@@ -88,6 +88,8 @@ public partial class MainWindow : SukiWindow, IMainHost
         // task-7：公告未读数——启动加载一次，窗口重新激活时静默刷新；
         // 面板打开时另拉列表（MainWindowViewModel.Announcements.cs）。
         vm.StartAnnouncementRefresh();
+        // 收件箱（好友申请 / 工作区邀请）：订阅待处理计数，窗口激活时自愈刷新
+        vm.StartInboxRefresh();
         Activated += (_, _) => vm.OnShellActivated();
 
         // 文件页快捷键（Ctrl+A 全选 / Esc 取消选择）：挂在窗口级 Tunnel，
@@ -295,6 +297,14 @@ public partial class MainWindow : SukiWindow, IMainHost
         if (vm.IsAnnouncementsOpen && e.Key == Key.Escape)
         {
             vm.IsAnnouncementsOpen = false;
+            e.Handled = true;
+            return;
+        }
+
+        // 收件箱面板同样只拦 Esc（非模态）
+        if (vm.IsInboxOpen && e.Key == Key.Escape)
+        {
+            vm.CloseInboxCommand.Execute(null);
             e.Handled = true;
             return;
         }
@@ -871,5 +881,14 @@ public partial class MainWindow : SukiWindow, IMainHost
 
         vm.MarkAnnouncementReadCommand.Execute(item);
         e.Handled = true;
+    }
+
+    // ── 收件箱面板交互（非阻塞覆盖层）──────────────────────────
+
+    /// <summary>点遮罩关闭；只有点在遮罩本身（不是面板内控件）才关。</summary>
+    private void OnInboxBackdropPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm && ReferenceEquals(e.Source, InboxOverlay))
+            vm.CloseInboxCommand.Execute(null);
     }
 }
