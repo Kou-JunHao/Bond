@@ -1415,8 +1415,8 @@ public partial class SettingsPage : UserControl
     {
         InitializeComponent();
 
-        _groups = new Control[] { GroupProfile, Group0, Group1, Group2, Group3, Group4 };
-        _navs = new[] { NavProfile, NavAccount, NavAppearance, NavTransfer, NavNetwork, NavAbout };
+        _groups = new Control[] { GroupProfile, Group0, GroupRedeem, Group1, Group2, Group3, Group4 };
+        _navs = new[] { NavProfile, NavAccount, NavRedeem, NavAppearance, NavTransfer, NavNetwork, NavAbout };
 
         _spyTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _spyTimer.Tick += (_, _) =>
@@ -1425,7 +1425,7 @@ public partial class SettingsPage : UserControl
             if (!_scrollingToAnchor) UpdateScrollSpy();
         };
 
-        // 进入设置页时从 /api/auth/me 读取当前邮箱与昵称（不缓存、不落盘）
+        // 进入设置页时从 /api/auth/me 读取当前邮箱与昵称（不缓存、不落盘）；同时刷新「会员与兑换」的档位卡
         AttachedToVisualTree += (_, _) =>
         {
             if (DataContext is Bond.ViewModels.SettingsPageViewModel vm)
@@ -1433,6 +1433,7 @@ public partial class SettingsPage : UserControl
                 _ = vm.RefreshEmailAsync();
                 vm.InitProfileUi();
                 _ = vm.RefreshProfileAsync();
+                _ = vm.LoadRedeemSectionAsync();
             }
 
             ApplyNavLayout(Bounds.Width);

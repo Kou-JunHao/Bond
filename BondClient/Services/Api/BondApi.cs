@@ -194,6 +194,15 @@ public class EntitlementsDto
 
     [JsonPropertyName("planName")] public string? PlanName { get; set; }
 
+    /// <summary>档位状态：active=生效；grace=已到期但仍在宽限期内（额度保留）。</summary>
+    [JsonPropertyName("status")] public string? Status { get; set; }
+
+    /// <summary>
+    /// 档位到期时间（ISO-8601 带时区偏移）；免费/永久档为 null。
+    /// 与 <see cref="RedeemResultDto"/> 同样按字符串接收，避免时间格式差异拖垮整个响应解析。
+    /// </summary>
+    [JsonPropertyName("expiresAt")] public string? ExpiresAt { get; set; }
+
     [JsonPropertyName("usage")] public EntitlementsUsageDto? Usage { get; set; }
 
     [JsonPropertyName("limits")] public EntitlementsLimitsDto? Limits { get; set; }

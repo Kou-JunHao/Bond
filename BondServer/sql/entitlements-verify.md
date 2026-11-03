@@ -48,6 +48,8 @@ SELECT plan_code, count(*) FROM users GROUP BY plan_code;                     --
 
 1. `POST /api/admin/redeem-codes` `{"planCode":"plus","durationDays":30,"count":3}` → 返回 3 个 `BOND-...` 码。
 2. 用户 `POST /api/redeem` `{"code":"..."}` → 200，返回 planCode/expiresAt；`orders` 新增 `provider='redeem', provider_txn_id=code`。
+   客户端等价入口：**设置 → 会员与兑换** → 粘贴兑换码（回车即可兑换）；成功会显示新档位与到期时间，
+   失败原样显示后端 message（如「兑换码无效、已使用或已过期」）。
 3. 同码再次兑换 → 400（幂等）；`redeem_codes.status='used'`。
 
 ## 6. 并发原子性（可用两个并发请求验证）
