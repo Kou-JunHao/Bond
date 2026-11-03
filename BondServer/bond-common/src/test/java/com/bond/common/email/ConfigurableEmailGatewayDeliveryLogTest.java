@@ -80,12 +80,12 @@ class ConfigurableEmailGatewayDeliveryLogTest {
         EmailDeliveryRecorder.EmailDeliveryRecord record = recorder.records.get(0);
         assertEquals(EmailDeliveryRecorder.EmailDeliveryRecord.STATUS_SENT, record.status());
         assertEquals("verification_code", record.templateCode());
-        assertEquals("b***@example.com", record.toMasked());
+        assertEquals("p***@example.com", record.toMasked());
         assertEquals("smtp", record.provider());
         assertEquals(0, record.placeholdersLeft());
         assertTrue(record.variableKeys().contains("code"));
         assertTrue(record.subject().contains("123456"));
-        assertFalse(record.toMasked().contains("bondprobe"));
+        assertFalse(record.toMasked().contains("probe"));
     }
 
     @Test

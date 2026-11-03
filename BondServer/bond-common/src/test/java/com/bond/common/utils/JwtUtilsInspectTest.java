@@ -42,9 +42,12 @@ class JwtUtilsInspectTest {
     @DisplayName("篡改签名必须判为 SIGNATURE_INVALID（不是 VALID）")
     void tamperedSignatureIsInvalid() {
         String token = JwtUtils.generateAccessToken(42L, "tester");
-        char last = token.charAt(token.length() - 1);
-        char replacement = last == 'A' ? 'B' : 'A';
-        String tampered = token.substring(0, token.length() - 1) + replacement;
+        // 改签名段第一个字符，确保解码后的签名字节一定变化；
+        // 改最后一个 base64url 字符可能只改到填充位，签名仍可能通过校验。
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char first = token.charAt(signatureStart);
+        char replacement = first == 'A' ? 'B' : 'A';
+        String tampered = token.substring(0, signatureStart) + replacement + token.substring(signatureStart + 1);
 
         assertEquals(JwtUtils.TokenState.SIGNATURE_INVALID, JwtUtils.inspect(tampered));
     }
