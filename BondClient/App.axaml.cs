@@ -122,8 +122,13 @@ public partial class App : Application
 
                 try
                 {
+                    // 自检只需要「一次注定失败的登录」：用户名与口令都在运行时生成，不写死任何字面量。
+                    // 以前这里写的是 password = "__wrong__"，被 GitGuardian 的 Generic Password 规则
+                    // 判成硬编码口令（误报），改成随机串后既保持语义，也不再触发密钥扫描。
+                    var probeUser = "__probe_" + Guid.NewGuid().ToString("N")[..8];
+                    var probePass = Guid.NewGuid().ToString("N");
                     var r = await api.PostAsync<Bond.Services.Api.UserDto>("/api/auth/login",
-                        new { username = "__probe_not_exist__", password = "__wrong__" });
+                        new { username = probeUser, password = probePass });
                     lines.Add(r is null
                         ? "RESULT=null  LastError=" + (api.LastError ?? "(空)")
                         : $"RESULT code={r.Code} message={r.Message}");
