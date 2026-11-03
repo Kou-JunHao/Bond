@@ -11,7 +11,7 @@
     </UserControl.Resources>
 
     <!-- task-154：设置页 = 左侧分组导航（220 DIP 固定）+ 右侧单组内容（独立滚动）。
-         六组（个人资料 / 账户与安全 / 外观 / 传输与下载 / 挂载与网络 / 关于与更新）常驻同一滚动容器，
+         七组（个人资料 / 账户与安全 / 会员与兑换 / 外观 / 传输与下载 / 挂载与网络 / 关于与更新）常驻同一滚动容器，
          点击导航平滑滚动到锚点并同步高亮；窄于 1020 DIP 时左栏折叠为顶部横向 chip。
          卡片宽度由 SectionsStack 的 MaxWidth=1040 + 各 section 根 Stretch 控制。 -->
     <Grid x:Name="RootGrid" RowDefinitions="Auto,*" Margin="24,18,24,18"
@@ -31,13 +31,15 @@
                             AutomationProperties.Name="个人资料" />
                     <Button x:Name="NavAccount" Classes="settingsnav" Tag="1" Click="OnNavClick" Content="账户与安全"
                             AutomationProperties.Name="账户与安全" />
-                    <Button x:Name="NavAppearance" Classes="settingsnav" Tag="2" Click="OnNavClick" Content="外观"
+                    <Button x:Name="NavRedeem" Classes="settingsnav" Tag="2" Click="OnNavClick" Content="会员与兑换"
+                            AutomationProperties.Name="会员与兑换" />
+                    <Button x:Name="NavAppearance" Classes="settingsnav" Tag="3" Click="OnNavClick" Content="外观"
                             AutomationProperties.Name="外观" />
-                    <Button x:Name="NavTransfer" Classes="settingsnav" Tag="3" Click="OnNavClick" Content="传输与下载"
+                    <Button x:Name="NavTransfer" Classes="settingsnav" Tag="4" Click="OnNavClick" Content="传输与下载"
                             AutomationProperties.Name="传输与下载" />
-                    <Button x:Name="NavNetwork" Classes="settingsnav" Tag="4" Click="OnNavClick" Content="挂载与网络"
+                    <Button x:Name="NavNetwork" Classes="settingsnav" Tag="5" Click="OnNavClick" Content="挂载与网络"
                             AutomationProperties.Name="挂载与网络" />
-                    <Button x:Name="NavAbout" Classes="settingsnav" Tag="5" Click="OnNavClick" Content="关于与更新"
+                    <Button x:Name="NavAbout" Classes="settingsnav" Tag="6" Click="OnNavClick" Content="关于与更新"
                             AutomationProperties.Name="关于与更新" />
                 </StackPanel>
             </ScrollViewer>
@@ -65,6 +67,16 @@
                             </StackPanel>
                             <Border Classes="settingsrule" Margin="0" />
                             <settings:AccountSection />
+                        </StackPanel>
+
+                        <!-- 会员与兑换：当前档位 + 管理员发放的兑换码（只做兑换，不接支付） -->
+                        <StackPanel x:Name="GroupRedeem" Spacing="12" Margin="0,0,0,22">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="h2" Text="会员与兑换" />
+                                <TextBlock Classes="meta" Text="当前档位、到期时间与兑换码" />
+                            </StackPanel>
+                            <Border Classes="settingsrule" Margin="0" />
+                            <settings:RedeemSection />
                         </StackPanel>
 
                         <StackPanel x:Name="Group1" Spacing="12" Margin="0,0,0,22">
