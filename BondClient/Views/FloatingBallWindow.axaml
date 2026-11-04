@@ -86,8 +86,6 @@
                     Width="56" Height="56"
                     CornerRadius="28"
                     Background="{DynamicResource BondBg}"
-                    BorderBrush="{DynamicResource BondBorder}"
-                    BorderThickness="1"
                     BoxShadow="0 4 16 0 #26000000"
                     RenderTransformOrigin="50%,50%"
                     PointerPressed="OnPointerPressed"
@@ -95,10 +93,6 @@
                     PointerReleased="OnPointerReleased"
                     PointerEntered="OnPointerEntered"
                     PointerExited="OnPointerExited">
-                <!-- Clip 与 Border 边界/圆角严格一致，避免背景在四角多出 1px 直角边。 -->
-                <Border.Clip>
-                    <RectangleGeometry Rect="0,0,56,56" RadiusX="28" RadiusY="28" />
-                </Border.Clip>
                 <Border.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="打开主界面" Click="OnOpenMainClick" />
@@ -111,10 +105,14 @@
                     <ScaleTransform ScaleX="1" ScaleY="1" />
                 </Border.RenderTransform>
 
-                <Panel>
-
+                <Panel Name="ContentPanel">
+                    <!-- 只裁剪面板内容本身，不裁剪外层 BallBorder / 描边 / 阴影。
+                         内容裁到描边内侧 1px，避免展开后内容压住或越出 1px 边框。 -->
                     <!-- ═══ 快捷面板 ═══ -->
                     <Border Name="PanelContent" Background="{DynamicResource BondBg}" Opacity="0" IsVisible="False">
+                        <Border.Clip>
+                            <RectangleGeometry Rect="1,1,54,54" RadiusX="27" RadiusY="27" />
+                        </Border.Clip>
                         <!-- ⓪ 应用图标独占第一行（44 高），让 18px logo 的中心落在 (25,28)，
                              与旧版 BondClient 的落点一致；① 身份行整体下移到第二行。 -->
                         <Grid RowDefinitions="44,58,Auto,*,22" Margin="16,6,16,8">
@@ -441,6 +439,14 @@
                             </Image.RenderTransform>
                         </Image>
                     </Canvas>
+
+                    <!-- 描边画在内容之上：Border 的子内容会盖住右/下 1px 边框，
+                         导致展开后只有左上角看得到描边。 -->
+                    <Border Name="BorderOverlay"
+                            BorderBrush="{DynamicResource BondBorder}"
+                            BorderThickness="1"
+                            CornerRadius="28"
+                            IsHitTestVisible="False" />
                 </Panel>
             </Border>
 

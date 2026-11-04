@@ -27,6 +27,36 @@
         <Image Source="avares://Bond/Assets/logo.png" Width="24" Height="24" />
     </suki:SukiWindow.LogoContent>
 
+    <suki:SukiWindow.Styles>
+        <!-- SukiUI 默认把标题栏按钮做成 25×25、CornerRadius=20 的圆形；
+             这里改成整块矩形热区，贴近 Windows 原生标题栏按钮的交互。 -->
+        <Style Selector="Button.WindowControlsButton">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="62" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Margin" Value="-3.5,0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.WindowControlsButton.Close">
+            <Setter Property="Width" Value="54.67" />
+            <Setter Property="Padding" Value="0,0,8.67,0" />
+        </Style>
+        <Style Selector="Button.WindowControlsButton PathIcon">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.WindowControlsButton:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
+            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
+        </Style>
+        <Style Selector="Button.WindowControlsButton.Close:pointerover">
+            <Setter Property="Background" Value="{DynamicResource BondError}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </suki:SukiWindow.Styles>
+
     <suki:SukiWindow.RightWindowTitleBarControls>
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,8,0">
             <Button Classes="ghosticon" Padding="6,4" MinWidth="32" ToolTip.Tip="账户菜单">

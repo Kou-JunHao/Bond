@@ -1,10 +1,15 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Bond.Core.Morph;
 using Material.Icons;
 using SukiUI.Controls;
@@ -71,6 +76,27 @@ public partial class MainWindow : SukiWindow, IMainHost
 
     private const double BadgeAppearMs = 220;
     private const double BadgeFadeMs = 180;
+
+    protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+    {
+        base.OnApplyTemplate(e);
+        AlignTitleBarButton(e.NameScope.Find<Button>("PART_MinimizeButton"));
+        AlignTitleBarButton(e.NameScope.Find<Button>("PART_MaximizeButton"));
+        AlignTitleBarButton(e.NameScope.Find<Button>("PART_CloseButton"));
+    }
+
+    private static void AlignTitleBarButton(Button? button)
+    {
+        if (button is null) return;
+        button.VerticalContentAlignment = VerticalAlignment.Center;
+        button.HorizontalContentAlignment = HorizontalAlignment.Center;
+        if (button.Content is PathIcon icon)
+        {
+            icon.Margin = default;
+            icon.VerticalAlignment = VerticalAlignment.Center;
+            icon.HorizontalAlignment = HorizontalAlignment.Center;
+        }
+    }
 
     public MainWindow()
     {

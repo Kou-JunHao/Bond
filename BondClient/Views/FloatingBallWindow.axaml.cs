@@ -715,18 +715,21 @@ public partial class FloatingBallWindow : Window, IBallHost
     // ---------------------------------------------------------------
 
     /// <summary>
-    /// 更新球体/面板的圆角裁剪。
-    /// <para>Clip 与 Border 边界/圆角严格一致：外扩 1px 会让背景在四角多出
-    /// 一条 1px 的直角边，看起来像圆角没裁干净；描边由 Border 自身绘制。</para>
+    /// 更新球体/面板内容的圆角裁剪。
+    /// <para>只裁剪 ContentPanel，不裁剪外层 BallBorder：外层 Border 的 1px 描边和
+    /// BoxShadow 必须完整绘制，否则圆角处会像“缺了描边和阴影”。</para>
     /// </summary>
     private void UpdateBallClip(double w, double h, double cr)
     {
-        if (BallBorder.Clip is RectangleGeometry clip)
+        if (PanelContent.Clip is RectangleGeometry clip)
         {
-            clip.Rect = new Rect(0, 0, w, h);
-            clip.RadiusX = cr;
-            clip.RadiusY = cr;
+            // 内容裁到 1px 描边内侧，避免内容压住/越出边框。
+            clip.Rect = new Rect(1, 1, Math.Max(0, w - 2), Math.Max(0, h - 2));
+            clip.RadiusX = Math.Max(0, cr - 1);
+            clip.RadiusY = Math.Max(0, cr - 1);
         }
+
+        BorderOverlay.CornerRadius = new CornerRadius(cr);
     }
 
     /// <summary>只在整数像素位置变化时移动窗口，避免每帧触发无意义的窗口 move。</summary>
