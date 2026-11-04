@@ -3,7 +3,7 @@
 ; 依赖：先执行 dotnet publish BondClient\Bond.csproj -c Release -r win-x64 --self-contained true -o publish\BondClient-win-x64
 
 #define MyAppName "Bond"
-#define MyAppVersion "2.1.5"
+#define MyAppVersion "2.1.6"
 #define MyAppPublisher "Bond"
 #define MyAppExeName "Bond.exe"
 #define MyAppUrl "https://bond-admin.skkk.uno"

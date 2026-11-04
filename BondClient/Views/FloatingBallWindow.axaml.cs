@@ -280,8 +280,12 @@ public partial class FloatingBallWindow : Window, IBallHost
         // 先不显示面板内容：morph 前 35% 内容完全透明，若此时仍参与布局，
         // 每帧随 BallBorder 尺寸变化重排整棵面板树，是掉帧的主要来源。
         // 等内容真正开始淡入（MorphTick 中 opacity > 0.01）再显示。
-        PanelContent.IsVisible = false;
+        // 但图标落点依赖槽位的真实布局，所以这里临时布局一次再隐藏。
+        PanelContent.IsVisible = true;
         PanelContent.Opacity = 0;
+        UpdateLayout();
+        UpdateIconTargetFromLayout();
+        PanelContent.IsVisible = false;
         MorphIcon.IsVisible = true;
         _contentFadeIn = true;
 
@@ -584,6 +588,10 @@ public partial class FloatingBallWindow : Window, IBallHost
         _morphInProgress = false;
         BallBorder.BoxShadow = _ballShadow;
 
+        // 最后一帧 raw 可能还没到 1，弹簧插值会停在目标前一点点；
+        // 这里强制把图标吸附到精确落点，避免展开后 logo 与 18px 槽位差几像素。
+        SetMorphIcon(_iTx, _iTy, _iTs);
+
         if (PanelContent.RenderTransform is TranslateTransform ct) ct.X = 0;
 
         if (!_mDir)
@@ -743,6 +751,22 @@ public partial class FloatingBallWindow : Window, IBallHost
             _mScale.ScaleX = scale;
             _mScale.ScaleY = scale;
         }
+    }
+
+    /// <summary>
+    /// 用图标槽位的真实布局中心反推图标最终位移，避免硬编码 16/6 边距
+    /// 与 Border 边框取整（PanelContent 原点约 1.33px）造成展开后 logo 偏移。
+    /// </summary>
+    private void UpdateIconTargetFromLayout()
+    {
+        if (IconSlot.Bounds.Width <= 0 || IconSlot.Bounds.Height <= 0) return;
+
+        var center = IconSlot.TranslatePoint(
+            new Point(IconSlot.Bounds.Width / 2, IconSlot.Bounds.Height / 2), BallBorder);
+        if (center is null) return;
+
+        _icoEndTx = center.Value.X - MorphSpec.IconBaseCenter;
+        _icoEndTy = center.Value.Y - MorphSpec.IconBaseCenter;
     }
 
     // ---------------------------------------------------------------

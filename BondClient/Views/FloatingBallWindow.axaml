@@ -120,10 +120,12 @@
                              身份行内部结构与会话/按钮位置保持原样。 -->
                         <Grid RowDefinitions="24,58,Auto,*,22" Margin="16,6,16,8">
 
-                            <!-- ⓪ 应用图标槽位：球体上的 Bond logo 展开后停在这一格并一直保留
-                                 （落点见 MorphSpec.IconTargetCenter*：x=16+9, y=6+24/2）。
+                            <!-- ⓪ 应用图标槽位：球体上的 Bond logo 展开后停在这一格并一直保留。
+                                 落点由 IconSlot 的实际布局动态计算；左侧 7px 让 logo 的
+                                 可见左缘与头像圆形的可见左缘对齐（头像图自带透明留白）。
                                  这个 18px 的格子只给图标预留，别再往里放头像/文字。 -->
-                            <Border Grid.Row="0" Width="18" Height="18"
+                            <Border x:Name="IconSlot" Grid.Row="0" Width="18" Height="18"
+                                    Margin="7,0,0,0"
                                     HorizontalAlignment="Left" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="False"
                                     ToolTip.Tip="Bond" />
