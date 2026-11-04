@@ -95,10 +95,9 @@
                     PointerReleased="OnPointerReleased"
                     PointerEntered="OnPointerEntered"
                     PointerExited="OnPointerExited">
-                <!-- Clip 比 Border 边界外扩 1px：否则展开到面板圆角时，
-                     1px 描边会正好落在裁剪边界上，四角被裁掉。 -->
+                <!-- Clip 与 Border 边界/圆角严格一致，避免背景在四角多出 1px 直角边。 -->
                 <Border.Clip>
-                    <RectangleGeometry Rect="-1,-1,58,58" RadiusX="29" RadiusY="29" />
+                    <RectangleGeometry Rect="0,0,56,56" RadiusX="28" RadiusY="28" />
                 </Border.Clip>
                 <Border.ContextMenu>
                     <ContextMenu>
@@ -116,16 +115,14 @@
 
                     <!-- ═══ 快捷面板 ═══ -->
                     <Border Name="PanelContent" Background="{DynamicResource BondBg}" Opacity="0" IsVisible="False">
-                        <!-- ⓪ 应用图标独占第一行（24 高），① 身份行整体下移到第二行，
-                             身份行内部结构与会话/按钮位置保持原样。 -->
-                        <Grid RowDefinitions="24,58,Auto,*,22" Margin="16,6,16,8">
+                        <!-- ⓪ 应用图标独占第一行（44 高），让 18px logo 的中心落在 (25,28)，
+                             与旧版 BondClient 的落点一致；① 身份行整体下移到第二行。 -->
+                        <Grid RowDefinitions="44,58,Auto,*,22" Margin="16,6,16,8">
 
                             <!-- ⓪ 应用图标槽位：球体上的 Bond logo 展开后停在这一格并一直保留。
-                                 落点由 IconSlot 的实际布局动态计算；左侧 7px 让 logo 的
-                                 可见左缘与头像圆形的可见左缘对齐（头像图自带透明留白）。
-                                 这个 18px 的格子只给图标预留，别再往里放头像/文字。 -->
-                            <Border x:Name="IconSlot" Grid.Row="0" Width="18" Height="18"
-                                    Margin="7,0,0,0"
+                                 18px 格子居中后中心为 (25,28)，与旧版 BondClient 的落点一致。
+                                 这个格子只给图标预留，别再往里放头像/文字。 -->
+                            <Border Grid.Row="0" Width="18" Height="18"
                                     HorizontalAlignment="Left" VerticalAlignment="Center"
                                     Background="Transparent" IsHitTestVisible="False"
                                     ToolTip.Tip="Bond" />

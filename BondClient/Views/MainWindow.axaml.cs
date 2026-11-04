@@ -25,6 +25,14 @@ public partial class MainWindow : SukiWindow, IMainHost
     private INotificationCenter? _notify;
     private DispatcherTimer? _toastTimer;
 
+    // 主窗口显示/隐藏的短淡入淡出：避免「悬浮球」按钮/托盘切换时窗口生硬地消失/出现。
+    private DispatcherTimer? _windowFadeTimer;
+    private System.Diagnostics.Stopwatch? _windowFadeClock;
+    private double _windowFadeFrom;
+    private double _windowFadeTo;
+    private bool _windowFadeHideAfter;
+    private int _windowFadeGen;
+
     // 侧栏传输徽标：只在数量变化时动，禁止循环脉冲
     private enum BadgeAnim { None, Appear, Bounce, Disappear }
 
@@ -818,11 +826,63 @@ public partial class MainWindow : SukiWindow, IMainHost
     // ── IMainHost ─────────────────────────────────────────────
     public void RequestShow()
     {
-        Show();
+        _windowFadeGen++;
+        _windowFadeTimer?.Stop();
+
+        if (!IsVisible)
+        {
+            // 从悬浮球/托盘恢复时先透明显示，再淡入，避免窗口生硬地“跳”出来。
+            Opacity = 0;
+            Show();
+        }
+
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        FadeWindowTo(1, hideAfter: false);
+        Activate();
     }
 
-    public void RequestHide() => Hide();
+    public void RequestHide()
+    {
+        if (!IsVisible) return;
+        FadeWindowTo(0, hideAfter: true);
+    }
+
+    /// <summary>主窗口显示/隐藏的短淡入淡出（约 140ms），用于悬浮球/托盘切换。</summary>
+    private void FadeWindowTo(double target, bool hideAfter)
+    {
+        _windowFadeGen++;
+        var gen = _windowFadeGen;
+        _windowFadeTimer?.Stop();
+
+        _windowFadeFrom = Opacity;
+        _windowFadeTo = target;
+        _windowFadeHideAfter = hideAfter;
+        _windowFadeClock = System.Diagnostics.Stopwatch.StartNew();
+
+        _windowFadeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _windowFadeTimer.Tick += (_, _) =>
+        {
+            if (gen != _windowFadeGen)
+            {
+                _windowFadeTimer?.Stop();
+                return;
+            }
+
+            var t = Math.Min(1.0, _windowFadeClock!.Elapsed.TotalMilliseconds / 140.0);
+            var eased = 1 - Math.Pow(1 - t, 3);
+            Opacity = _windowFadeFrom + (_windowFadeTo - _windowFadeFrom) * eased;
+
+            if (t < 1) return;
+
+            _windowFadeTimer?.Stop();
+            if (_windowFadeHideAfter)
+            {
+                Hide();
+                Opacity = 1;
+            }
+        };
+        _windowFadeTimer.Start();
+    }
 
     public void RequestActivate() => Activate();
 
@@ -859,7 +919,7 @@ public partial class MainWindow : SukiWindow, IMainHost
         e.Cancel = true;
         // task-138：收进托盘前先把文档编辑器里未保存的内容落盘。
         FlushDocs();
-        Hide();
+        RequestHide();
     }
 
     // ── task-7：公告面板交互（非阻塞覆盖层）────────────────────

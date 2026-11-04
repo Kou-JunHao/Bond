@@ -263,9 +263,6 @@ public partial class FloatingBallWindow : Window, IBallHost
         _iFx = _mTrans?.X ?? 0;
         _iFy = _mTrans?.Y ?? 0;
         _iFs = _mScale?.ScaleX ?? 1;
-        _iTx = _icoEndTx;
-        _iTy = _icoEndTy;
-        _iTs = _icoEndSc;
 
         if (_mScale is not null && _mScale.ScaleX < 0.9)
         {
@@ -284,8 +281,17 @@ public partial class FloatingBallWindow : Window, IBallHost
         PanelContent.IsVisible = true;
         PanelContent.Opacity = 0;
         UpdateLayout();
-        UpdateIconTargetFromLayout();
         PanelContent.IsVisible = false;
+
+        // 旧版 BondClient 的落点：logo 中心 (25,28)。动态槽位会因 PanelContent 原点/边框取整偏移，
+        // 这里用旧版常量并在最终 scale 下校准一次，保证展开后与旧版一致。
+        _icoEndTx = MorphSpec.IconTargetCenterX - MorphSpec.IconBaseCenter;
+        _icoEndTy = MorphSpec.IconTargetCenterY - MorphSpec.IconBaseCenter;
+        CalibrateIconTarget();
+
+        _iTx = _icoEndTx;
+        _iTy = _icoEndTy;
+        _iTs = _icoEndSc;
         MorphIcon.IsVisible = true;
         _contentFadeIn = true;
 
@@ -710,16 +716,16 @@ public partial class FloatingBallWindow : Window, IBallHost
 
     /// <summary>
     /// 更新球体/面板的圆角裁剪。
-    /// <para>Clip 比 Border 边界外扩 1px：Border 的 1px 描边正好画在边界上，
-    /// 若 Clip 与边界完全重合，展开到面板圆角时四角描边会被裁掉。</para>
+    /// <para>Clip 与 Border 边界/圆角严格一致：外扩 1px 会让背景在四角多出
+    /// 一条 1px 的直角边，看起来像圆角没裁干净；描边由 Border 自身绘制。</para>
     /// </summary>
     private void UpdateBallClip(double w, double h, double cr)
     {
         if (BallBorder.Clip is RectangleGeometry clip)
         {
-            clip.Rect = new Rect(-1, -1, w + 2, h + 2);
-            clip.RadiusX = cr + 1;
-            clip.RadiusY = cr + 1;
+            clip.Rect = new Rect(0, 0, w, h);
+            clip.RadiusX = cr;
+            clip.RadiusY = cr;
         }
     }
 
@@ -757,16 +763,34 @@ public partial class FloatingBallWindow : Window, IBallHost
     /// 用图标槽位的真实布局中心反推图标最终位移，避免硬编码 16/6 边距
     /// 与 Border 边框取整（PanelContent 原点约 1.33px）造成展开后 logo 偏移。
     /// </summary>
-    private void UpdateIconTargetFromLayout()
+    /// <summary>
+    /// 在最终缩放/位移下量一次真实渲染中心，把“布局坐标 → 渲染坐标”的固定偏差补掉。
+    /// 旧版 BondClient 的 logo 中心是 (25,28)，这里以它为准。
+    /// </summary>
+    private void CalibrateIconTarget()
     {
-        if (IconSlot.Bounds.Width <= 0 || IconSlot.Bounds.Height <= 0) return;
+        if (_mTrans is null || _mScale is null) return;
 
-        var center = IconSlot.TranslatePoint(
-            new Point(IconSlot.Bounds.Width / 2, IconSlot.Bounds.Height / 2), BallBorder);
-        if (center is null) return;
+        var oldTx = _mTrans.X;
+        var oldTy = _mTrans.Y;
+        var oldScale = _mScale.ScaleX;
 
-        _icoEndTx = center.Value.X - MorphSpec.IconBaseCenter;
-        _icoEndTy = center.Value.Y - MorphSpec.IconBaseCenter;
+        _mScale.ScaleX = _mScale.ScaleY = _icoEndSc;
+        _mTrans.X = _icoEndTx;
+        _mTrans.Y = _icoEndTy;
+        UpdateLayout();
+
+        var actual = MorphIcon.TranslatePoint(
+            new Point(MorphIcon.Bounds.Width / 2, MorphIcon.Bounds.Height / 2), BallBorder);
+        if (actual is not null)
+        {
+            _icoEndTx += MorphSpec.IconTargetCenterX - actual.Value.X;
+            _icoEndTy += MorphSpec.IconTargetCenterY - actual.Value.Y;
+        }
+
+        _mTrans.X = oldTx;
+        _mTrans.Y = oldTy;
+        _mScale.ScaleX = _mScale.ScaleY = oldScale;
     }
 
     // ---------------------------------------------------------------

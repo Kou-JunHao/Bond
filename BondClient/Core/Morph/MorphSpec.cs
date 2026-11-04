@@ -70,7 +70,7 @@ public static class MorphSpec
     /// 展开后图标**一直留在面板左上角**，不会被账号头像或面板内容盖住（见 FloatingBallWindow.axaml）。</para>
     /// </summary>
     public const double IconTargetCenterX = 16.0 + IconTargetSize / 2.0;
-    public const double IconTargetCenterY = 6.0 + 24.0 / 2.0;
+    public const double IconTargetCenterY = 6.0 + 44.0 / 2.0;
 
     // ── 交互阈值（DIP）────────────────────────────────────────
     public const double DragThreshold = 5.0;
