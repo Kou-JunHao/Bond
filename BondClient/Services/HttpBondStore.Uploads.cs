@@ -393,11 +393,6 @@ public sealed partial class HttpBondStore : IUploadService
                 Ui(() => { task.UpdateSent(value); task.UpdateSpeed(speed); });
                 Persist();
             }
-            else
-            {
-                var value = received;
-                Ui(() => task.UpdateSent(value));
-            }
         }
 
         var complete = await session.Complete().ConfigureAwait(false);

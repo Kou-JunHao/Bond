@@ -24,13 +24,22 @@ public sealed class ProgressStreamContent(
     {
         var buffer = new byte[BufferSize];
         long done = 0;
+        long lastReport = 0;
 
         int read;
         while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
             await stream.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             done += read;
-            progress?.Report(totalBytes <= 0 ? 1 : Math.Min(1, done / (double)totalBytes));
+
+            // 进度只用于 UI 展示：64KB 一块全量上报会在高速上传时把 UI 线程刷爆，
+            // 这里按 100ms 节流，最后一块强制上报一次。
+            var now = Environment.TickCount64;
+            if (done >= totalBytes || now - lastReport >= 100)
+            {
+                lastReport = now;
+                progress?.Report(totalBytes <= 0 ? 1 : Math.Min(1, done / (double)totalBytes));
+            }
         }
     }
 

@@ -1,13 +1,14 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Rendering;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Bond.Core.Morph;
@@ -77,30 +78,93 @@ public partial class MainWindow : SukiWindow, IMainHost
     private const double BadgeAppearMs = 220;
     private const double BadgeFadeMs = 180;
 
+    private bool _windowButtonsHooked;
+    private bool _windowAnimating;
+    private bool _restoreFadePending;
+
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         base.OnApplyTemplate(e);
-        AlignTitleBarButton(e.NameScope.Find<Button>("PART_MinimizeButton"));
-        AlignTitleBarButton(e.NameScope.Find<Button>("PART_MaximizeButton"));
-        AlignTitleBarButton(e.NameScope.Find<Button>("PART_CloseButton"));
+        HookWindowButtons(e);
     }
 
-    private static void AlignTitleBarButton(Button? button)
+    private void HookWindowButtons(TemplateAppliedEventArgs e)
+    {
+        if (_windowButtonsHooked) return;
+        _windowButtonsHooked = true;
+        HookWindowButton(e.NameScope.Find<Button>("PART_MinimizeButton"), AnimateMinimizeAsync);
+        HookWindowButton(e.NameScope.Find<Button>("PART_MaximizeButton"), AnimateMaximizeAsync);
+    }
+
+    private void HookWindowButton(Button? button, Func<Task> action)
     {
         if (button is null) return;
-        button.VerticalContentAlignment = VerticalAlignment.Center;
-        button.HorizontalContentAlignment = HorizontalAlignment.Center;
-        if (button.Content is PathIcon icon)
+        button.AddHandler(Button.ClickEvent, async (_, args) =>
         {
-            icon.Margin = default;
-            icon.VerticalAlignment = VerticalAlignment.Center;
-            icon.HorizontalAlignment = HorizontalAlignment.Center;
+            args.Handled = true;
+            await action();
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    private async Task AnimateMinimizeAsync()
+    {
+        if (_windowAnimating) return;
+        _windowAnimating = true;
+        _restoreFadePending = true;
+        await AnimateOpacityAsync(0, 140);
+        WindowState = WindowState.Minimized;
+        Opacity = 1;
+        _windowAnimating = false;
+    }
+
+    private async Task AnimateMaximizeAsync()
+    {
+        if (_windowAnimating) return;
+        _windowAnimating = true;
+        var target = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        await AnimateOpacityAsync(0.82, 90);
+        WindowState = target;
+        await AnimateOpacityAsync(1, 130);
+        _windowAnimating = false;
+    }
+
+    private Task AnimateOpacityAsync(double target, double durationMs)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var from = Opacity;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        void Tick(TimeSpan _)
+        {
+            var t = Math.Min(1, sw.Elapsed.TotalMilliseconds / durationMs);
+            var eased = 1 - Math.Pow(1 - t, 3);
+            Opacity = from + (target - from) * eased;
+            if (t >= 1)
+            {
+                tcs.TrySetResult(true);
+                return;
+            }
+            RequestAnimationFrame(Tick);
+        }
+        RequestAnimationFrame(Tick);
+        return tcs.Task;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && _restoreFadePending && WindowState == WindowState.Normal)
+        {
+            _restoreFadePending = false;
+            Opacity = 0;
+            _ = AnimateOpacityAsync(1, 160);
         }
     }
 
     public MainWindow()
     {
         InitializeComponent();
+        Opened += (_, _) => Dispatcher.UIThread.Post(ApplyHighRefreshRenderTimer, DispatcherPriority.Loaded);
+        StartFpsStats();
         HookShell();
         InitSidebarState();
     }
@@ -108,9 +172,13 @@ public partial class MainWindow : SukiWindow, IMainHost
     public MainWindow(MainWindowViewModel vm)
     {
         InitializeComponent();
+
         DataContext = vm;
+        Opened += (_, _) => Dispatcher.UIThread.Post(ApplyHighRefreshRenderTimer, DispatcherPriority.Loaded);
+        StartFpsStats();
         HookShell();
         InitSidebarState();
+
 
         vm.ShowFilesRequested += (_, _) => SelectNav(0);
         vm.ShowTransfersRequested += (_, _) => SelectNav(2);
@@ -391,6 +459,13 @@ public partial class MainWindow : SukiWindow, IMainHost
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (e.Key == Key.F9 && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+        {
+            ToggleFpsStats();
+            e.Handled = true;
+            return;
+        }
+
         if (Preview is { IsOpen: true } preview)
         {
             switch (e.Key)

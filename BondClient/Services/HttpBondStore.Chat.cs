@@ -1127,6 +1127,7 @@ public sealed partial class HttpBondStore : IChatAttachmentDownloader
     {
         var buffer = new byte[256 * 1024];
         long received = 0;
+        long lastReport = 0;
         int read;
         while ((read = await source.ReadAsync(buffer.AsMemory(), ct).ConfigureAwait(false)) > 0)
         {
@@ -1134,7 +1135,13 @@ public sealed partial class HttpBondStore : IChatAttachmentDownloader
             received += read;
             if (totalBytes > 0)
             {
-                progress?.Report(Math.Clamp((double)received / totalBytes, 0, 1));
+                // 下载进度同样按 100ms 节流，避免高速下载时每 256KB 刷一次 UI。
+                var now = Environment.TickCount64;
+                if (received >= totalBytes || now - lastReport >= 100)
+                {
+                    lastReport = now;
+                    progress?.Report(Math.Clamp((double)received / totalBytes, 0, 1));
+                }
             }
         }
 

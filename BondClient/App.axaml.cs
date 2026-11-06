@@ -76,6 +76,10 @@ public partial class App : Application
         // 两个窗口并存，关闭主窗口不应杀掉进程。
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+        // WinUI Composition 在平台初始化阶段会把自己的 IRenderLoop 绑回去；
+        // 这里在创建任何 TopLevel/Compositor 之前重新绑定为显示器刷新率。
+        Bond.Program.TryUseDisplayRefreshRate();
+
         Services = AppServices.Build();
         _coordinator = (WindowCoordinator)Services.GetRequiredService<IWindowCoordinator>();
 

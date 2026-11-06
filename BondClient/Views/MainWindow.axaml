@@ -16,6 +16,10 @@
                  IsMenuVisible="False"
                  IsTitleBarVisible="True"
                  CanFullScreen="True"
+                 TitleBarVisibilityOnFullScreen="AutoHidden"
+                 TitleBarAutoHideDelay="1200"
+                 TitleBarAutoShowDelay="200"
+                 TitleBarAnimationEnabled="True"
                  MaxWidthScreenRatio="0.94"
                  MaxHeightScreenRatio="0.90"
                  CanMove="True"
@@ -26,36 +30,6 @@
     <suki:SukiWindow.LogoContent>
         <Image Source="avares://Bond/Assets/logo.png" Width="24" Height="24" />
     </suki:SukiWindow.LogoContent>
-
-    <suki:SukiWindow.Styles>
-        <!-- SukiUI 默认把标题栏按钮做成 25×25、CornerRadius=20 的圆形；
-             这里改成整块矩形热区，贴近 Windows 原生标题栏按钮的交互。 -->
-        <Style Selector="Button.WindowControlsButton">
-            <Setter Property="Width" Value="46" />
-            <Setter Property="Height" Value="62" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Margin" Value="-3.5,0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-        </Style>
-        <Style Selector="Button.WindowControlsButton.Close">
-            <Setter Property="Width" Value="54.67" />
-            <Setter Property="Padding" Value="0,0,8.67,0" />
-        </Style>
-        <Style Selector="Button.WindowControlsButton PathIcon">
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.WindowControlsButton:pointerover">
-            <Setter Property="Background" Value="{DynamicResource BondSurfaceAlt}" />
-            <Setter Property="Foreground" Value="{DynamicResource BondPrimary}" />
-        </Style>
-        <Style Selector="Button.WindowControlsButton.Close:pointerover">
-            <Setter Property="Background" Value="{DynamicResource BondError}" />
-            <Setter Property="Foreground" Value="White" />
-        </Style>
-    </suki:SukiWindow.Styles>
 
     <suki:SukiWindow.RightWindowTitleBarControls>
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,8,0">
@@ -148,6 +122,7 @@
     <!-- 页面内容直接挂在 SukiSideMenuItem.PageContent 上 -->
     <!-- task-153：界面缩放只作用于主窗口内容。LayoutTransformControl 会按倍率重新测量/布局，
          不像 RenderTransform 那样把超出窗口的部分裁掉；悬浮球窗口不参与缩放。 -->
+    <Grid>
     <LayoutTransformControl x:Name="ZoomHost">
     <suki:SukiSideMenu x:Name="SideMenu"
                        IsMenuExpanded="True"
@@ -270,6 +245,24 @@
 
     </suki:SukiSideMenu>
     </LayoutTransformControl>
+
+    <!-- 临时帧率统计浮层（BOND_FPS_STATS=1 时显示）：平均帧、1% Low、帧时间分位与帧率分布。 -->
+    <Border x:Name="FpsStatsPanel"
+            IsVisible="False"
+            IsHitTestVisible="False"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Margin="12"
+            Padding="10,8"
+            CornerRadius="8"
+            Background="#D9000000">
+        <TextBlock x:Name="FpsStatsText"
+                   FontFamily="Consolas, Microsoft YaHei UI"
+                   FontSize="11"
+                   Foreground="White"
+                   TextWrapping="NoWrap" />
+    </Border>
+    </Grid>
     <!-- 全局 Toast + 侧栏传输徽标 + 预览覆盖层：挂在 SukiWindow.Hosts 上，覆盖所有页面 -->
     <suki:SukiWindow.Hosts>
         <Panel IsHitTestVisible="False">
